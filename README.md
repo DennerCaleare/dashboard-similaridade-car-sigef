@@ -9,6 +9,10 @@
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 </div>
 
+## 🚀 Versão Online
+
+[Ver Dashboard em Produção](https://dashboard-similaridade-car-sigef-vcputp9ksec9yi3y9wwh7a.streamlit.app)
+
 ## 📋 Sobre o Projeto
 
 Dashboard interativo desenvolvido para análise exploratória de dados de similaridade espacial entre cadastros **CAR (Cadastro Ambiental Rural)** e **SIGEF (Sistema de Gestão Fundiária)**. O sistema utiliza o **Índice de Jaccard** para medir a sobreposição geoespacial entre polígonos e identifica padrões de coerência entre titularidade (CPF) e similaridade geométrica.
