@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
-import zetta_utils as zt
+#import zetta_utils as zt
 import duckdb
 import os
 import base64
