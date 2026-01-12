@@ -1,7 +1,7 @@
-# Dashboard CAR-SIGEF: Análise de Similaridade Espacial
+# 📊 Dashboard Similaridade CAR-SIGEF
 
 <div align="center">
-  <img src="LogoZetta.png" alt="Agência Zetta" width="200"/>
+  <img src="assets/LogoZetta.png" alt="Agência Zetta" width="200"/>
   
   [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
   [![Streamlit](https://img.shields.io/badge/Streamlit-1.30+-red.svg)](https://streamlit.io/)
@@ -9,237 +9,256 @@
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 </div>
 
-## 🚀 Versão Online
+## 📖 Sobre o Projeto
 
-[Ver Dashboard em Produção](https://dashboard-similaridade-car-sigef-vcputp9ksec9yi3y9wwh7a.streamlit.app)
+Dashboard interativo desenvolvido pela **Agência Zetta** para análise exploratória de dados de similaridade espacial entre cadastros **CAR (Cadastro Ambiental Rural)** e **SIGEF (Sistema de Gestão Fundiária)**. 
 
-## 📋 Sobre o Projeto
-
-Dashboard interativo desenvolvido para análise exploratória de dados de similaridade espacial entre cadastros **CAR (Cadastro Ambiental Rural)** e **SIGEF (Sistema de Gestão Fundiária)**. O sistema utiliza o **Índice de Jaccard** para medir a sobreposição geoespacial entre polígonos e identifica padrões de coerência entre titularidade (CPF) e similaridade geométrica.
+O sistema utiliza o **Índice de Jaccard** para medir sobreposição geoespacial entre polígonos e identifica padrões de coerência entre titularidade (CPF/CNPJ) e similaridade geométrica, possibilitando análise de riscos fundiários e validação cadastral.
 
 ### 🎯 Principais Funcionalidades
 
-- **Análise de 1,3+ milhões de registros** em tempo real
-- **Filtros dinâmicos** por região, UF, tamanho do imóvel e status
-- **Matriz de risco** cruzando validação de CPF e similaridade espacial
-- **Visualizações interativas** com gráficos de distribuição, correlação e dispersão
-- **Sistema de paginação** para navegação em grandes volumes de dados
-- **Exportação de dados** filtrados em formato CSV
+- 📊 **Análise de 1,3+ milhões de registros** com performance otimizada via DuckDB
+- 🔍 **Filtros dinâmicos interativos** por região, UF, tamanho do imóvel e status
+- 📈 **17 visualizações especializadas** incluindo:
+  - Matriz de Confiabilidade (Mosaic Plot)
+  - Matriz de Maturidade Fundiária (Scatter com bolhas)
+  - Análise temporal de evolução
+  - Distribuições KDE e histogramas
+  - Análise de densidade por tamanho e status
+- ⚠️ **Insights de risco** cruzando validação de CPF e similaridade espacial
+- ⚡ **Performance otimizada** com cache inteligente e queries SQL otimizadas
 
-## 🚀 Tecnologias Utilizadas
+---
+
+## 🚀 Tecnologias
 
 ### Core
-- **[Streamlit](https://streamlit.io/)** - Framework para criação do dashboard web
-- **[DuckDB](https://duckdb.org/)** - Banco de dados analítico em memória para consultas SQL ultra-rápidas
+- **[Streamlit](https://streamlit.io/)** - Framework para dashboard web interativo
+- **[DuckDB](https://duckdb.org/)** - Motor SQL analítico in-memory de alta performance
 - **[Pandas](https://pandas.pydata.org/)** - Manipulação e análise de dados
-- **[NumPy](https://numpy.org/)** - Computação numérica de alta performance
+- **[NumPy](https://numpy.org/)** - Computação numérica
 
 ### Visualização
-- **[Matplotlib](https://matplotlib.org/)** - Criação de gráficos estáticos
+- **[Matplotlib](https://matplotlib.org/)** - Gráficos estáticos e customizados
 - **[Seaborn](https://seaborn.pydata.org/)** - Visualizações estatísticas avançadas
-- **[dc_zetta_utils](https://github.com/datasciencezetta/dc_zetta_utils)** - Biblioteca customizada para gráficos padronizados
+- **[zetta_utils](https://github.com/datasciencezetta/dc_zetta_utils)** - Biblioteca customizada Zetta
 
 ### Análise Estatística
-- **[SciPy](https://scipy.org/)** - Testes estatísticos (Jarque-Bera, Kruskal-Wallis)
+- **[statsmodels](https://www.statsmodels.org/)** - Mosaic plots e análise estatística
 
-## ⚡ Otimizações de Performance
-
-O projeto implementa diversas estratégias para garantir performance excepcional:
-
-### 1. DuckDB - Consultas SQL Diretas no CSV
-```python
-# Ao invés de carregar 1GB na memória:
-df = pd.read_csv('dados.csv')  # ❌ Lento: 5-10s
-df = df[df['uf'] == 'MG']      # ❌ Filtra depois
-
-# Fazemos consultas SQL diretas:
-df = con.execute("""
-    SELECT * FROM 'dados.csv' 
-    WHERE uf = 'MG'
-""").df()  # ✅ Rápido: 0.5-1s
-```
-
-**Ganhos:**
-- **10-20x mais rápido** no carregamento inicial
-- **100-200x mais rápido** para agregações (COUNT, SUM, etc.)
-- **95% menos memória** (50 MB vs 1 GB)
-
-### 2. Otimização de Tipos de Dados
-```python
-# Conversões aplicadas:
-int64 → int32    # -50% memória em IDs
-float64 → float32  # -50% memória em áreas
-object → category  # -70-90% em colunas repetitivas
-```
-
-**Resultado:**
-- De **991 MB** → **367 MB** (-63% de memória)
-- Carregamento **2-3x mais rápido**
-
-### 3. Cache Inteligente
-Todas as funções críticas usam `@st.cache_data` para evitar recálculos desnecessários.
-
-## 📊 Estrutura do Dashboard
-
-### Aba 1: Visão Geral
-- Histograma de distribuição do Índice Jaccard
-- Gráfico de rosca por faixa de similaridade
-- Distribuição geográfica por UF
-- Estatísticas descritivas
-
-### Aba 2: Matriz de Risco
-- Cruzamento **Titularidade (CPF) × Similaridade Espacial (≥85%)**
-- 4 categorias:
-  - 🟢 **Coerente**: CPF igual + Geo ≥85%
-  - 🟠 **Incoerência Espacial**: CPF igual + Geo <85%
-  - 🟡 **Incoerência de Titularidade**: CPF diferente + Geo ≥85%
-  - 🔴 **Incoerente**: CPF diferente + Geo <85%
-
-### Aba 3: Análise Espacial
-- Scatter plot de discrepância: Área CAR vs Área SIGEF
-- Box plot e violin plot de similaridade por região
-- Análise de tendências espaciais
-
-### Aba 4: Distribuições
-- Análise por tamanho do imóvel (Pequeno, Médio, Grande)
-- Gráficos de distribuição por status (Ativo, Cancelado, Pendente, Suspenso)
-- Teste de Kruskal-Wallis para diferença entre grupos
-
-### Aba 5: Análise Detalhada
-- Stacked bar plots por status e UF
-- Matriz de correlação entre variáveis numéricas
-- Validação do cálculo do Índice Jaccard
-
-### Aba 6: Dados
-- Navegação paginada (50 registros por página)
-- Visualização de todas as colunas
-- Exportação de dados filtrados
-
-## 🔧 Instalação e Configuração
-
-### Pré-requisitos
-- Python 3.11 ou superior
-- pip (gerenciador de pacotes Python)
-
-### Passo 1: Clone o repositório
-```bash
-git clone https://github.com/SEU_USUARIO/NOME_DO_REPO.git
-cd NOME_DO_REPO
-```
-
-### Passo 2: Crie um ambiente virtual
-```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# ou
-venv\Scripts\activate     # Windows
-```
-
-### Passo 3: Instale as dependências
-```bash
-pip install -r requirements.txt
-```
-
-### Passo 4: Configure variáveis de ambiente (opcional)
-Se for usar conexão com banco de dados PostgreSQL, crie um arquivo `.env`:
-```env
-DB_HOST=seu_host
-DB_PORT=5432
-DB_NAME=seu_database
-DB_USER=seu_usuario
-DB_PASSWORD=sua_senha
-```
-
-### Passo 5: Adicione os dados
-Coloque o arquivo CSV `similaridade_sicar_sigef_brasil.csv` na pasta `data/`:
-```bash
-# Coloque seu arquivo CSV aqui
-data/similaridade_sicar_sigef_brasil.csv
-```
-
-**Nota**: O arquivo CSV não está incluído no repositório por ser muito grande (>1GB). Entre em contato para obter o dataset.
-
-### Passo 6: Execute o dashboard
-```bash
-streamlit run app.py
-```
-
-O dashboard abrirá automaticamente em `http://localhost:8501`
+---
 
 ## 📁 Estrutura do Projeto
 
 ```
-car-sigef-similarity-dashboard/
-├── app.py                              # Aplicação principal do dashboard
-├── assets/                             # Recursos estáticos
-│   ├── Logo.png                        # Logo para favicon
-│   └── LogoZetta.png                   # Logo da Agência Zetta
-├── data/                               # Arquivos de dados
-│   ├── .gitkeep                        # Mantém pasta no Git
-│   └── similaridade_sicar_sigef_brasil.csv  # Dataset principal (não versionado)
-├── notebooks/                          # Análises exploratórias
-│   └── eda_similaridade_car_sigef.ipynb
-├── scripts/                            # Scripts auxiliares
-│   └── otimizar_csv_final.py           # Otimização de tipos de dados
-├── requirements.txt                    # Dependências do projeto
-├── .gitignore                          # Arquivos ignorados pelo Git
-├── .env.example                        # Exemplo de configuração de ambiente
-├── LICENSE                             # Licença MIT
-└── README.md                           # Documentação do projeto
+dashboard-similaridade-car-sigef/
+│
+├── app.py                          # 🎯 Aplicação principal Streamlit
+├── requirements.txt                # 📦 Dependências Python
+├── README.md                       # 📖 Documentação
+├── LICENSE                         # ⚖️ Licença MIT
+│
+├── .streamlit/
+│   └── config.toml                # ⚙️ Configurações do Streamlit
+│
+├── assets/                         # 🎨 Recursos visuais
+│   ├── Logo.png
+│   └── LogoZetta.png
+│
+├── data/                           # 💾 Dados do projeto
+│   └── similaridade_sicar_sigef_brasil.csv
+│
+└── src/                            # 📂 Código-fonte modularizado
+    ├── __init__.py
+    ├── config/                    # ⚙️ Configurações e constantes
+    │   ├── __init__.py
+    │   ├── constants.py           # Constantes globais
+    │   └── styles.py              # Estilos CSS customizados
+    └── utils/                     # 🛠️ Utilitários
+        ├── __init__.py
+        ├── database.py            # Conexão DuckDB e queries
+        ├── filters.py             # Filtros interativos
+        └── visualizations.py      # Funções de visualização
 ```
 
-## 🗄️ Otimização do CSV (Opcional)
+---
 
-Para otimizar o arquivo CSV original, execute:
+## 🔧 Instalação e Execução
+
+### Pré-requisitos
+
+- Python 3.11 ou superior
+- pip (gerenciador de pacotes Python)
+- Git
+
+### 1️⃣ Clone o repositório
 
 ```bash
-python scripts/otimizar_csv_final.py
+git clone https://github.com/DennerCaleare/dashboard-similaridade-car-sigef.git
+cd dashboard-similaridade-car-sigef
 ```
 
-Este script aplica as seguintes otimizações:
-- Converte `int64 → int32`
-- Converte `float64 → float32`
-- Converte `object → category` em colunas repetitivas
-- Reduz o tamanho do arquivo em ~63%
+### 2️⃣ Crie um ambiente virtual
 
-## 📈 Métricas de Performance
+```bash
+# Windows
+python -m venv .venv
+.venv\Scripts\activate
 
-| Operação | Pandas | DuckDB | Ganho |
-|----------|--------|--------|-------|
-| Carregamento completo | 5-10s | 0.5s | **10-20x** |
-| Filtrar 1 UF | 5-10s | 0.8s | **6-12x** |
-| COUNT(*) | 5-10s | 0.05s | **100-200x** |
-| Valores únicos | 5-10s | 0.2s | **25-50x** |
-| Memória (sem filtros) | 930 MB | 50 MB | **-95%** |
-| Memória (1 UF filtrada) | 930 MB | 35 MB | **-96%** |
+# Linux/Mac
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3️⃣ Instale as dependências
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4️⃣ Configure os dados
+
+Certifique-se de que o arquivo CSV está no diretório correto:
+```
+data/similaridade_sicar_sigef_brasil.csv
+```
+
+### 5️⃣ Execute o dashboard
+
+```bash
+streamlit run app.py
+```
+
+O dashboard será aberto automaticamente em `http://localhost:8501` 🚀
+
+---
+
+## 📊 Visualizações Disponíveis
+
+### 1. Panorama Regional e Operacional
+- 📍 Distribuição percentual por UF
+- 📊 Gráficos empilhados: Região, UF, Tamanho e Status vs Similaridade
+- 📈 Densidade KDE por Tamanho e Status
+
+### 2. Evolução Temporal
+- 📅 Volume de CARs + Similaridade Mediana
+- 📈 Evolução por Tamanho de Imóvel
+- 🗺️ Evolução por Região
+
+### 3. Diagnóstico de Similaridade
+- 📊 Histograma de Índice Jaccard
+- 🍩 Donut: Distribuição por faixa
+- 📉 KDE: Discrepância de áreas
+
+### 4. Análise de Risco
+- ⚠️ **Matriz de Confiabilidade** (Mosaic Plot)
+  - 🟢 Verde: Alta maturidade (CPF igual + alta similaridade)
+  - 🟠 Laranja: Erro técnico ou risco jurídico
+  - 🔴 Vermelho: Crítico
+
+### 5. Maturidade Fundiária
+- 🎯 **Scatter com bolhas** por UF
+  - Eixo X: % Similaridade Espacial
+  - Eixo Y: % Conformidade Titular
+  - Tamanho: Volume de CARs
+  - Cor: Região
+
+---
+
+## � Metodologia
+
+### Índice de Jaccard
+
+Mede a similaridade espacial entre dois polígonos:
+
+$$
+J(A, B) = \frac{|A \cap B|}{|A \cup B|} = \frac{\text{Área de Interseção}}{\text{Área da União}}
+$$
+
+**Interpretação:**
+- **85-100%**: Alta confiabilidade ✅
+- **50-85%**: Atenção requerida ⚠️
+- **0-50%**: Divergência significativa ❌
+
+### Quadrantes de Risco
+
+| Titularidade | Similaridade | Classificação | Ação Recomendada |
+|-------------|-------------|---------------|------------------|
+| ✅ Igual | ✅ ≥ 85% | **Alta Maturidade** | Monitorar |
+| ✅ Igual | ❌ < 85% | **Erro Técnico** | Retificar |
+| ❌ Diferente | ✅ ≥ 85% | **Risco Jurídico** | Auditar |
+| ❌ Diferente | ❌ < 85% | **Crítico** | Reestruturar |
+
+---
+
+## 🐛 Solução de Problemas
+
+### ❌ Erro ao carregar dados
+
+```python
+# Verifique se o arquivo existe
+import os
+print(os.path.exists('data/similaridade_sicar_sigef_brasil.csv'))
+```
+
+### 🐌 Performance lenta
+
+- ✅ Certifique-se de usar DuckDB para queries pesadas
+- ✅ Cache está habilitado por padrão
+- ✅ Reduza filtros para datasets menores durante testes
+
+### 💾 Erro de memória
+
+- Reduza o tamanho do dataset para testes locais
+- No Streamlit Cloud, considere upgrade de plano
+
+---
 
 ## 🤝 Contribuindo
 
-Contribuições são bem-vindas! Sinta-se à vontade para:
+Contribuições são bem-vindas! Para contribuir:
 
-1. Fazer um fork do projeto
-2. Criar uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abrir um Pull Request
+1. Fork o projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/NovaFuncionalidade`)
+3. Commit suas mudanças (`git commit -m 'Adiciona nova funcionalidade'`)
+4. Push para a branch (`git push origin feature/NovaFuncionalidade`)
+5. Abra um Pull Request
 
-## 📝 Licença
+---
+
+## 📄 Licença
 
 Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+---
 
 ## 👥 Autores
 
 **Agência Zetta - UFLA**
+- 🌐 Website: [agenciazetta.ufla.br](https://agenciazetta.ufla.br/)
+- 💻 GitHub: [@datasciencezetta](https://github.com/datasciencezetta)
 
-- Website: [https://agenciazetta.ufla.br/](https://agenciazetta.ufla.br/)
-- GitHub: [@datasciencezetta](https://github.com/datasciencezetta)
+**Desenvolvedor Principal**
+- Denner Caleare - [@DennerCaleare](https://github.com/DennerCaleare)
+
+---
 
 ## 📧 Contato
 
-Para dúvidas ou sugestões, entre em contato através do site da [Agência Zetta](https://agenciazetta.ufla.br/).
+Para dúvidas, sugestões ou parcerias:
+- 📧 Email: contato@agenciazetta.com.br
+- 💼 LinkedIn: [Agência Zetta](https://www.linkedin.com/company/agenciazetta)
+
+---
+
+## 🙏 Agradecimentos
+
+- Equipe do projeto MGI (Mapeamento Geo-Identitário)
+- Ministério da Gestão e Inovação
+- UFLA - Universidade Federal de Lavras
 
 ---
 
 <div align="center">
-  Desenvolvido com ❤️ pela <a href="https://agenciazetta.ufla.br/">Agência Zetta</a>
+  <strong>Desenvolvido com ❤️ pela Agência Zetta</strong>
 </div>
