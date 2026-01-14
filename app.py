@@ -17,7 +17,7 @@ import matplotlib.patches as mpatches
 from src.config import (
     CSS_CUSTOM, CORES_FAIXA_JACCARD, CORES_TAMANHO, CORES_STATUS,
     CORES_EVOLUCAO_TAMANHO, CORES_EVOLUCAO_REGIAO, CORES_TITULARIDADE,
-    CORES_MATURIDADE_REGIAO, JACCARD_LABELS, LABELS_STATUS,
+    CORES_MATURIDADE_REGIAO, JACCARD_LABELS, LABELS_STATUS, REGIOES_NOME_MAP,
     DISCREPANCIA_MIN, DISCREPANCIA_MAX, LOGO_FOOTER_PATH, ANO_MIN, ANO_MAX
 )
 from src.utils import (
@@ -181,45 +181,51 @@ with col4:
 
 # Verificar se filtros mudaram (evitar recálculo desnecessário)
 current_filters = (
-    tuple(regioes_selecionadas) if regioes_selecionadas else None,
-    tuple(ufs_selecionadas) if ufs_selecionadas else None,
-    tuple(tamanhos_selecionados) if tamanhos_selecionados else None,
-    tuple(status_selecionados) if status_selecionados else None
+    tuple(sorted(regioes_selecionadas)) if regioes_selecionadas else (),
+    tuple(sorted(ufs_selecionadas)) if ufs_selecionadas else (),
+    tuple(sorted(tamanhos_selecionados)) if tamanhos_selecionados else (),
+    tuple(sorted(status_selecionados)) if status_selecionados else ()
 )
 
 filters_changed = current_filters != st.session_state.last_filters
 
-# Aplicar filtros (com cache inteligente)
+# Aplicar filtros automaticamente quando mudam
 if filters_changed or st.session_state.df_cached is None:
     status_placeholder = st.empty()
-    progress_container = st.empty()
     
     try:
-        # Progress bar animada
-        with progress_container:
-            progress_bar = st.progress(0, text='🔄 Carregando dados filtrados...')
-            for i in range(100):
-                progress_bar.progress(i + 1, text=f'🔄 Carregando dados... {i+1}%')
-                import time
-                time.sleep(CONFIG['PROGRESS_SLEEP'])
+        # Validar que não há filtros vazios inválidos
+        valid_regioes = [r for r in (regioes_selecionadas or []) if r]
+        valid_ufs = [u for u in (ufs_selecionadas or []) if u]
+        valid_tamanhos = [t for t in (tamanhos_selecionados or []) if t]
+        valid_status = [s for s in (status_selecionados or []) if s]
+        
+        status_placeholder.info('🔄 Carregando dados filtrados...')
         
         df_filtrado = load_filtered_data(
-            regioes=regioes_selecionadas if regioes_selecionadas else None,
-            ufs=ufs_selecionadas if ufs_selecionadas else None,
-            tamanhos=tamanhos_selecionados if tamanhos_selecionados else None,
-            status=status_selecionados if status_selecionados else None
+            regioes=valid_regioes if valid_regioes else None,
+            ufs=valid_ufs if valid_ufs else None,
+            tamanhos=valid_tamanhos if valid_tamanhos else None,
+            status=valid_status if valid_status else None
         )
         
-        st.session_state.df_cached = df_filtrado
-        st.session_state.last_filters = current_filters
-        
-        progress_container.empty()
-        status_placeholder.success(f'✅ {len(df_filtrado):,} registros carregados!')
-        time.sleep(CONFIG['SUCCESS_MESSAGE_DURATION'])
-        status_placeholder.empty()
+        # Verificar se query retornou dados válidos
+        if df_filtrado is None or (isinstance(df_filtrado, pd.DataFrame) and df_filtrado.empty):
+            st.session_state.df_cached = pd.DataFrame()
+            st.session_state.last_filters = current_filters
+            status_placeholder.warning('⚠️ Nenhum dado encontrado para os filtros selecionados.')
+        else:
+            st.session_state.df_cached = df_filtrado
+            st.session_state.last_filters = current_filters
+            status_placeholder.success(f'✅ {len(df_filtrado):,} registros carregados!')
+            import time
+            time.sleep(0.5)
+            status_placeholder.empty()
         
     except Exception as e:
-        status_placeholder.error(f'❌ Erro: {str(e)}')
+        status_placeholder.error(f'❌ Erro ao carregar dados: {str(e)}')
+        st.error("Por favor, tente novamente ou simplifique os filtros.")
+        st.session_state.df_cached = pd.DataFrame()
         st.stop()
 else:
     df_filtrado = st.session_state.df_cached
@@ -231,16 +237,16 @@ need_region_data = ufs_selecionadas and len(ufs_selecionadas) > 0
 if need_region_data:
     # Criar filtros para região (sem UF)
     regiao_filters = (
-        tuple(regioes_selecionadas) if regioes_selecionadas else None,
-        tuple(tamanhos_selecionados) if tamanhos_selecionados else None,
-        tuple(status_selecionados) if status_selecionados else None
+        tuple(sorted(regioes_selecionadas)) if regioes_selecionadas else (),
+        tuple(sorted(tamanhos_selecionados)) if tamanhos_selecionados else (),
+        tuple(sorted(status_selecionados)) if status_selecionados else ()
     )
     
     # Verificar se precisa recarregar df_regiao
     if regiao_filters != st.session_state.last_regiao_filters or st.session_state.df_regiao_cached is None:
         status_regional = st.empty()
         try:
-            status_regional.info('Carregando panorama regional...')
+            status_regional.info('🔄 Carregando panorama regional...')
             df_regiao = load_filtered_data(
                 regioes=regioes_selecionadas if regioes_selecionadas else None,
                 ufs=None,  # Sem filtro de UF para panorama completo
@@ -279,17 +285,63 @@ with st.container():
         status=status_selecionados if status_selecionados else None
     )
     
+    st.markdown("""
+        <style>
+        .metric-container {
+            text-align: center;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+        .metric-label {
+            font-size: 14px;
+            color: #31333F;
+            margin-bottom: 8px;
+        }
+        .metric-value {
+            font-size: 32px;
+            font-weight: 600;
+            color: #31333F;
+        }
+        div[data-testid="column"] {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     with col1:
-        st.metric("Total de Registros", f"{stats['total_records']:,}")
+        st.markdown(f"""
+            <div class='metric-container'>
+                <div class='metric-label'>Total de Registros</div>
+                <div class='metric-value'>{stats['total_records']:,}</div>
+            </div>
+        """, unsafe_allow_html=True)
     
     with col2:
-        st.metric("Similaridade Média", f"{stats['avg_jaccard']:.1f}%")
+        st.markdown(f"""
+            <div class='metric-container'>
+                <div class='metric-label'>Similaridade Média</div>
+                <div class='metric-value'>{stats['avg_jaccard']:.1f}%</div>
+            </div>
+        """, unsafe_allow_html=True)
     
     with col3:
-        st.metric("Mediana Jaccard", f"{stats['median_jaccard']:.1f}%")
+        st.markdown(f"""
+            <div class='metric-container'>
+                <div class='metric-label'>Mediana Jaccard</div>
+                <div class='metric-value'>{stats['median_jaccard']:.1f}%</div>
+            </div>
+        """, unsafe_allow_html=True)
     
     with col4:
-        st.metric("UFs Representadas", stats['num_ufs'])
+        st.markdown(f"""
+            <div class='metric-container'>
+                <div class='metric-label'>UFs Representadas</div>
+                <div class='metric-value'>{stats['num_ufs']}</div>
+            </div>
+        """, unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -304,24 +356,43 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
         st.markdown("<h3 style='text-align: center;'>Similaridade e Titularidade por UF</h3>", unsafe_allow_html=True)
 
         # Verificar se há mais de 1 UF selecionada
-        num_ufs = df_filtrado['uf'].nunique()
+        num_ufs = df_filtrado['estado'].nunique()
 
         if num_ufs > 1:
             col1, col2 = st.columns(2)
             
             with col1:
-                zt.bar_plot(df_filtrado, 'uf', percentage=True, figsize=(7, 5))
+                # Altura fixa compacta para o gráfico de barras verticais
+                height = 4.5
+                zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=(6, height))
+                # Tamanho da fonte responsivo baseado no número de UFs
+                ax = plt.gca()
+                num_ufs_grafico = df_filtrado['estado'].nunique()
+                # Quando poucas UFs: fonte maior (10-12), quando muitas: fonte menor (6-7)
+                if num_ufs_grafico <= 5:
+                    fontsize = 10
+                elif num_ufs_grafico <= 10:
+                    fontsize = 8
+                elif num_ufs_grafico <= 20:
+                    fontsize = 6
+                else:
+                    fontsize = 5
+                for text in ax.texts:
+                    text.set_fontsize(fontsize)
+                    text.set_weight('bold')
                 st.pyplot(plt.gcf())
                 plt.close()
             
             with col2:
                 # Gráfico por região SEM filtro de UF (dados completos)
                 if len(df_regiao) > 0:
+                    num_regioes = df_regiao['regiao'].nunique()
+                    height_regiao = max(3, min(6, num_regioes * 0.8))
                     zt.stacked_bar_plot(
-                        df_regiao, y="regiao_analise", hue="faixa_jaccard",
+                        df_regiao, y="regiao", hue="faixa_jaccard",
                         order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
                         legend_title="Percentual de Similaridade CAR-SIGEF",
-                        use_suffix=False, figsize=(7, 5)
+                        show_pct_symbol=True, figsize=(6, height_regiao), legend_cols=5
                     )
                     st.pyplot(plt.gcf())
                     plt.close()
@@ -330,11 +401,13 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
         else:
             # Quando apenas 1 UF selecionada, mostrar apenas o gráfico por região
             if len(df_regiao) > 0:
+                num_regioes = df_regiao['regiao'].nunique()
+                height_regiao = max(2.5, min(5, num_regioes * 0.8))
                 zt.stacked_bar_plot(
-                    df_regiao, y="regiao_analise", hue="faixa_jaccard",
+                    df_regiao, y="regiao", hue="faixa_jaccard",
                     order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
                     legend_title="Percentual de Similaridade CAR-SIGEF",
-                    use_suffix=False, figsize=(12, 4)
+                    show_pct_symbol=True, figsize=(12, height_regiao), legend_cols=5
                 )
                 st.pyplot(plt.gcf())
                 plt.close()
@@ -343,11 +416,14 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
 
         st.markdown("---")
 
+        # Ajustar altura dinamicamente baseado no número de UFs
+        num_ufs_total = df_filtrado['estado'].nunique()
+        height_estado = max(2, min(7, num_ufs_total * 0.25))
         zt.stacked_bar_plot(
-            df_filtrado, y="uf", hue="faixa_jaccard",
+            df_filtrado, y="estado", hue="faixa_jaccard",
             order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
             legend_title="Percentual de Similaridade CAR-SIGEF",
-            use_suffix=False, figsize=(12, 6)
+            show_pct_symbol=True, figsize=(12, height_estado), legend_cols=5
         )
         st.pyplot(plt.gcf())
         plt.close()
@@ -355,11 +431,14 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
         st.markdown("---")
 
         st.markdown("<h3 style='text-align: center;'>Titularidade por UF</h3>", unsafe_allow_html=True)
+        # Ajustar altura dinamicamente
+        num_ufs_tit = df_filtrado['estado'].nunique()
+        height_tit = max(2, min(7, num_ufs_tit * 0.25))
         zt.stacked_bar_plot(
-            df_filtrado, y="uf", hue="label_cpf",
+            df_filtrado, y="estado", hue="label_cpf",
             order_hue=["Diferente", "Igual"], palette=CORES_TITULARIDADE,
             legend_title="Titularidade (CPF/CNPJ)",
-            use_suffix=False, figsize=(12, 6)
+            show_pct_symbol=True, figsize=(12, height_tit)
         )
         st.pyplot(plt.gcf())
         plt.close()
@@ -373,7 +452,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
             zt.stacked_bar_plot(
                 df_filtrado, y='faixa_jaccard', hue='label_cpf',
                 order_hue=["Diferente", "Igual"], palette=CORES_TITULARIDADE,
-                legend_title="Titularidade (CPF/CNPJ)", figsize=(7, 5)
+                legend_title="Titularidade (CPF/CNPJ)", show_pct_symbol=True, figsize=(7, 4)
             )
             st.pyplot(plt.gcf())
             plt.close()
@@ -384,7 +463,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                 df_filtrado, y="class_tam_imovel", hue="faixa_jaccard",
                 order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
                 legend_title="Percentual de Similaridade CAR-SIGEF",
-                use_suffix=False, figsize=(7, 5)
+                show_pct_symbol=True, figsize=(7, 4), legend_cols=5
             )
             st.pyplot(plt.gcf())
             plt.close()
@@ -401,18 +480,20 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
             with col1:
                 st.markdown("<h4 style='text-align: center;'>Densidade por Tamanho</h4>", unsafe_allow_html=True)
                 try:
-                    fig, ax = plt.subplots(figsize=(7, 4))
+                    # Filtrar dados válidos e converter para percentual
+                    df_kde = df_filtrado[df_filtrado['class_tam_imovel'].notna() & df_filtrado['indice_jaccard'].notna()].copy()
+                    df_kde['indice_jaccard_pct'] = df_kde['indice_jaccard'] * 100
+                    tamanhos_disponiveis = df_kde['class_tam_imovel'].unique()
                     
-                    # Verificar quais tamanhos existem nos dados
-                    tamanhos_disponiveis = df_filtrado['class_tam_imovel'].dropna().unique()
-                    
-                    if len(tamanhos_disponiveis) > 0:
+                    if len(df_kde) >= 10 and len(tamanhos_disponiveis) > 0:
+                        fig, ax = plt.subplots(figsize=(7, 4))
+                        
                         sns.kdeplot(
-                            data=df_filtrado, x="indice_jaccard", hue="class_tam_imovel",
-                            hue_order=["Pequeno", "Médio", "Grande"],
+                            data=df_kde, x="indice_jaccard_pct", hue="class_tam_imovel",
+                            hue_order=[t for t in ["Pequeno", "Médio", "Grande"] if t in tamanhos_disponiveis],
                             fill=True, common_norm=False, alpha=0.2, linewidth=2,
-                            palette=list(CORES_TAMANHO.values()),
-                            clip=(0, 100), legend=False, ax=ax
+                            palette={k: v for k, v in CORES_TAMANHO.items() if k in tamanhos_disponiveis},
+                            clip=(0, 100), legend=False, ax=ax, warn_singular=False
                         )
                         ax.set_yticks([])
                         ax.set_ylabel("")
@@ -442,14 +523,19 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
             with col2:
                 st.markdown("<h4 style='text-align: center;'>Densidade por Status</h4>", unsafe_allow_html=True)
                 try:
-                    fig, ax = plt.subplots(figsize=(7, 4))
-                    status_disponiveis = df_filtrado['status_imovel'].dropna().unique()
+                    # Filtrar dados válidos e converter para percentual
+                    df_kde_status = df_filtrado[df_filtrado['status_imovel'].notna() & df_filtrado['indice_jaccard'].notna()].copy()
+                    df_kde_status['indice_jaccard_pct'] = df_kde_status['indice_jaccard'] * 100
+                    status_disponiveis = df_kde_status['status_imovel'].unique()
                     
-                    if len(status_disponiveis) > 0:
+                    if len(df_kde_status) >= 10 and len(status_disponiveis) > 0:
+                        fig, ax = plt.subplots(figsize=(7, 4))
+                        
                         sns.kdeplot(
-                            data=df_filtrado, x="indice_jaccard", hue="status_imovel",
+                            data=df_kde_status, x="indice_jaccard_pct", hue="status_imovel",
                             fill=True, common_norm=False, alpha=0.2, linewidth=2,
-                            palette=CORES_STATUS, clip=(0, 100), legend=False, ax=ax
+                            palette={k: v for k, v in CORES_STATUS.items() if k in status_disponiveis},
+                            clip=(0, 100), legend=False, ax=ax, warn_singular=False
                         )
                         ax.set_yticks([])
                         ax.set_ylabel("")
@@ -488,7 +574,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
             df_filtrado, y="status_imovel", hue="faixa_jaccard",
             order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
             legend_title="Percentual de Similaridade CAR-SIGEF",
-            use_suffix=False, figsize=(12, 3)
+            show_pct_symbol=True, figsize=(12, 3), legend_cols=5
         )
         st.pyplot(plt.gcf())
         plt.close()
@@ -512,6 +598,7 @@ with st.expander("Evolução da Similaridade", expanded=True):
             
             df_ano_total = df_tempo.groupby('ano').size().reset_index(name='total')
             df_ano_sim = df_tempo.groupby('ano')['indice_jaccard'].median().reset_index()
+            df_ano_sim['indice_jaccard'] = df_ano_sim['indice_jaccard'] * 100  # Converter para percentual
             
             if len(df_ano_total) > 1:
                 fig, ax1 = plt.subplots(figsize=(12, 6))
@@ -566,6 +653,7 @@ with st.expander("Evolução da Similaridade", expanded=True):
                     df_tam = df_tempo[df_tempo['class_tam_imovel'] == tamanho]
                     if len(df_tam) > 0:
                         sim_por_ano = df_tam.groupby('ano')['indice_jaccard'].median().reset_index()
+                        sim_por_ano['indice_jaccard'] = sim_por_ano['indice_jaccard'] * 100  # Converter para percentual
                         if len(sim_por_ano) > 1:
                             ax.plot(sim_por_ano['ano'].astype(int), sim_por_ano['indice_jaccard'],
                                    color=CORES_EVOLUCAO_TAMANHO.get(tamanho, '#333'),
@@ -588,32 +676,29 @@ with st.expander("Evolução da Similaridade", expanded=True):
         with col2:
             st.markdown("<h3 style='text-align: center;'>Evolução por Região</h3>", unsafe_allow_html=True)
             
-            # Carregar dados SEM filtro de UF (apenas região, tamanho e status)
-            df_tempo_regiao = load_filtered_data(
-                regioes=regioes_selecionadas if regioes_selecionadas else None,
-                ufs=None,  # Sem filtro de UF
-                tamanhos=tamanhos_selecionados if tamanhos_selecionados else None,
-                status=status_selecionados if status_selecionados else None
-            )
+            # Usar df_regiao que já foi carregado sem filtro de UF
+            df_tempo_regiao = df_regiao.copy() if need_region_data else df_tempo.copy()
             
-            # Filtrar por ano
+            # Criar coluna 'ano' se necessário
             if 'ano_cadastro' in df_tempo_regiao.columns:
                 df_tempo_regiao = df_tempo_regiao[df_tempo_regiao['ano_cadastro'].notna()].copy()
                 df_tempo_regiao['ano'] = df_tempo_regiao['ano_cadastro'].astype(int)
                 df_tempo_regiao = df_tempo_regiao[(df_tempo_regiao['ano'] >= ANO_MIN) & (df_tempo_regiao['ano'] <= ANO_MAX)]
             
-            if 'regiao_analise' in df_tempo_regiao.columns and len(df_tempo_regiao) > 0:
+            if 'regiao' in df_tempo_regiao.columns and 'ano' in df_tempo_regiao.columns and len(df_tempo_regiao) > 0:
                 fig, ax = plt.subplots(figsize=(7, 4.5))
                 linhas_plotadas = False
                 
-                for regiao in ["Centro-Oeste", "Nordeste", "Norte", "Sudeste", "Sul"]:
-                    df_reg = df_tempo_regiao[df_tempo_regiao['regiao_analise'] == regiao]
-                    if len(df_reg) > 0:
+                for regiao_key in ["centro_oeste", "nordeste", "norte", "sudeste", "sul"]:
+                    df_reg = df_tempo_regiao[df_tempo_regiao['regiao'] == regiao_key]
+                    if len(df_reg) > 0 and 'ano' in df_reg.columns:
                         sim_por_ano = df_reg.groupby('ano')['indice_jaccard'].median().reset_index()
+                        sim_por_ano['indice_jaccard'] = sim_por_ano['indice_jaccard'] * 100  # Converter para percentual
                         if len(sim_por_ano) > 1:
+                            regiao_label = REGIOES_NOME_MAP.get(regiao_key, regiao_key.title())
                             ax.plot(sim_por_ano['ano'].astype(int), sim_por_ano['indice_jaccard'],
-                                   color=CORES_EVOLUCAO_REGIAO.get(regiao, '#333'),
-                                   linewidth=2.5, label=regiao, marker='o', markersize=6)
+                                   color=CORES_EVOLUCAO_REGIAO.get(regiao_key, '#333'),
+                                   linewidth=2.5, label=regiao_label, marker='o', markersize=6)
                             linhas_plotadas = True
                 
                 if linhas_plotadas:
@@ -645,7 +730,9 @@ with st.expander("Diagnóstico de Similaridade Espacial", expanded=True):
 
         with col1:
             st.markdown("<h3 style='text-align: center;'>Histograma</h3>", unsafe_allow_html=True)
-            zt.hist_plot(df_filtrado, 'indice_jaccard', xlabel='% de Similaridade', title='', figsize=(7, 4.5))
+            df_hist = df_filtrado.copy()
+            df_hist['indice_jaccard_pct'] = df_hist['indice_jaccard'] * 100
+            zt.hist_plot(df_hist, 'indice_jaccard_pct', xlabel='% de Similaridade', title='', figsize=(7, 4.5))
             st.pyplot(plt.gcf())
             plt.close()
 
@@ -730,11 +817,12 @@ with st.expander("Matriz de Maturidade Fundiária por UF", expanded=True):
     if not validate_data(df_filtrado, "Matriz de Maturidade", min_records=1):
         pass  # Mensagem já exibida pela função
     else:
-        uf_stats = df_filtrado.groupby('uf').agg(
-            pct_espacial_bom=('indice_jaccard', lambda x: (x >= 85).mean() * 100),
+        # Dados já vem tratados do DuckDB com cpf_ok como int (0 ou 1)
+        uf_stats = df_filtrado.groupby('estado').agg(
+            pct_espacial_bom=('indice_jaccard', lambda x: (x >= 0.85).mean() * 100),
             pct_cpf_igual=('cpf_ok', lambda x: x.mean() * 100),
-            regiao=('regiao_analise', 'first'),
-            total_cars=('uf', 'count')
+            regiao=('regiao', 'first'),
+            total_cars=('estado', 'count')
         ).reset_index()
 
         if len(uf_stats) >= 1:
@@ -760,25 +848,27 @@ with st.expander("Matriz de Maturidade Fundiária por UF", expanded=True):
                     sizes_normalized = ((sizes - sizes.min()) / (sizes.max() - sizes.min())) * (size_max - size_min) + size_min
 
                 # Plotar bolhas por região
-                for regiao in uf_stats['regiao'].unique():
-                    mask = uf_stats['regiao'] == regiao
+                regioes_presentes = []
+                for regiao_key in uf_stats['regiao'].unique():
+                    mask = uf_stats['regiao'] == regiao_key
                     masked_data = uf_stats.loc[mask]
                     
                     # Só plotar se houver dados
-                    if len(masked_data) > 0:
+                    if len(masked_data) > 0 and regiao_key is not None:
                         ax.scatter(
                             masked_data['pct_espacial_bom'],
                             masked_data['pct_cpf_igual'],
                             s=sizes_normalized[mask],
-                            c=CORES_MATURIDADE_REGIAO.get(regiao, '#999999'),
+                            c=CORES_MATURIDADE_REGIAO.get(regiao_key, '#999999'),
                             alpha=0.75, edgecolors='white', linewidths=2, zorder=3
                         )
+                        regioes_presentes.append(regiao_key)
 
                 # Adicionar labels das UFs
                 for idx, row in uf_stats.iterrows():
                     x_offset = 1.5 if row['pct_espacial_bom'] <= (x_max - 10) else -1.5
                     ha = 'left' if row['pct_espacial_bom'] <= (x_max - 10) else 'right'
-                    ax.annotate(row['uf'], (row['pct_espacial_bom'], row['pct_cpf_igual']),
+                    ax.annotate(row['estado'], (row['pct_espacial_bom'], row['pct_cpf_igual']),
                                    xytext=(x_offset, 1.5), textcoords='offset points',
                                fontsize=9, fontweight='bold', color='#333333', zorder=4)
 
@@ -796,15 +886,18 @@ with st.expander("Matriz de Maturidade Fundiária por UF", expanded=True):
                 for spine in ['left', 'bottom']:
                     ax.spines[spine].set_color('#BDBDBD')
 
-                # Legendas (usando patches ao invés de scatter vazio)
+                # Legendas (usando patches apenas para regiões presentes)
                 from matplotlib.patches import Patch
                 region_handles = [
-                    Patch(facecolor=cor, edgecolor='white', linewidth=1.5, label=regiao)
-                    for regiao, cor in CORES_MATURIDADE_REGIAO.items()
+                    Patch(facecolor=CORES_MATURIDADE_REGIAO[regiao_key], edgecolor='white', linewidth=1.5, 
+                          label=REGIOES_NOME_MAP.get(regiao_key, regiao_key.title()))
+                    for regiao_key in regioes_presentes if regiao_key in CORES_MATURIDADE_REGIAO
                 ]
-                fig.legend(handles=region_handles, title='Região', loc='upper left',
-                          bbox_to_anchor=(0.75, 0.88), frameon=True, fontsize=10,
-                          title_fontsize=11, framealpha=1, edgecolor='#CCCCCC')
+                
+                if region_handles:
+                    fig.legend(handles=region_handles, title='Região', loc='upper left',
+                              bbox_to_anchor=(0.75, 0.88), frameon=True, fontsize=10,
+                              title_fontsize=11, framealpha=1, edgecolor='#CCCCCC')
 
                 # Legenda de tamanho (apenas se houver variação)
                 if len(uf_stats) > 1 and sizes.min() != sizes.max():
