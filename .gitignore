@@ -1,4 +1,8 @@
 # ═══════════════════════════════════════════════════════════
+# Dashboard Similaridade CAR-SIGEF - .gitignore
+# ═══════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════
 # Python
 # ═══════════════════════════════════════════════════════════
 __pycache__/
@@ -49,10 +53,11 @@ env/
 .env.*.local
 
 # ═══════════════════════════════════════════════════════════
-# Data Files (CSV grandes - não versionar)
+# Data Files (CSVs grandes - manter versionamento conforme necessidade)
 # ═══════════════════════════════════════════════════════════
-data/*.csv
-!data/.gitkeep
+# Descomente a linha abaixo se não quiser versionar os CSVs
+# data/*.csv
+# !data/.gitkeep
 
 # ═══════════════════════════════════════════════════════════
 # Streamlit
@@ -74,27 +79,12 @@ data/*.csv
 .DS_Store
 Thumbs.db
 desktop.ini
-.idea/
-*.swp
-*.swo
-*~
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
+# ═══════════════════════════════════════════════════════════
+# Logs e Temporários
+# ═══════════════════════════════════════════════════════════
 *.log
-
-# Arquivos temporários
 *.tmp
 *.temp
-*.bak
-
-# Logs
-*.log
-
-# Temporary files
-*.tmp
 *.bak
 *.backup

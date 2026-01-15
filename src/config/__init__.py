@@ -1,5 +1,18 @@
 """
 Configurações e constantes do Dashboard de Similaridade CAR-SIGEF
+
+Este módulo contém todas as configurações globais, constantes, paletas de cores,
+labels e caminhos de arquivos utilizados no dashboard.
+
+Inclui:
+- CSS customizado para estilização da interface
+- Paletas de cores consistentes para visualizações
+- Labels e categorias padronizadas
+- Parâmetros de filtros e limites
+- Caminhos para recursos estáticos
+
+Desenvolvido para: Ministério da Gestão e Inovação (MGI)
+Última atualização: Janeiro 2026
 """
 
 # ═══════════════════════════════════════════════════════════

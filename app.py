@@ -1,6 +1,20 @@
 """
 Dashboard de Análise de Similaridade CAR-SIGEF
-Análise exploratória de dados de similaridade espacial entre registros CAR e SIGEF.
+
+Este dashboard fornece análise exploratória de dados de similaridade espacial 
+entre registros do Cadastro Ambiental Rural (CAR) e do Sistema de Gestão 
+Fundiária (SIGEF).
+
+Características principais:
+- Análise de similaridade espacial usando Índice de Jaccard
+- Cruzamento de titularidade (CPF/CNPJ)
+- Visualizações interativas por região, UF, tamanho e status
+- Performance otimizada com DuckDB
+- Cache inteligente para filtros
+
+Desenvolvido para: Ministério da Gestão e Inovação (MGI)
+Autor: Denner Caleare
+Data: Janeiro 2026
 """
 
 import streamlit as st
@@ -387,7 +401,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                 # Gráfico por região SEM filtro de UF (dados completos)
                 if len(df_regiao) > 0:
                     num_regioes = df_regiao['regiao'].nunique()
-                    height_regiao = max(3, min(6, num_regioes * 0.8))
+                    height_regiao = 4.5  # Mesma altura do gráfico de barras
                     zt.stacked_bar_plot(
                         df_regiao, y="regiao", hue="faixa_jaccard",
                         order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,

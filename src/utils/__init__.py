@@ -1,5 +1,20 @@
 """
 Funções utilitárias para o Dashboard de Similaridade CAR-SIGEF
+
+Este módulo contém todas as funções auxiliares para:
+- Conexão e consultas ao DuckDB (in-memory)
+- Carregamento e filtragem de dados
+- Criação de visualizações especializadas
+- Funções de filtros interativos
+- Formatação de números e dados
+
+Performance:
+- Utiliza DuckDB para queries otimizadas em memória
+- Cache de conexão singleton para evitar recarregamentos
+- Queries SQL agregadas para estatísticas rápidas
+
+Desenvolvido para: Ministério da Gestão e Inovação (MGI)
+Última atualização: Janeiro 2026
 """
 
 import streamlit as st
