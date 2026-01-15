@@ -1,0 +1,34 @@
+# ═══════════════════════════════════════════════════════════
+# Dashboard Similaridade CAR-SIGEF - Streamlit Cloud
+# ═══════════════════════════════════════════════════════════
+# Requirements otimizados para deploy no Streamlit Cloud
+# Última atualização: Janeiro 2026
+# ═══════════════════════════════════════════════════════════
+
+# Framework Web
+streamlit==1.49.1
+
+# Database & Data Processing
+duckdb==1.4.3
+pandas==2.3.3
+numpy==2.3.4
+
+# Visualização
+matplotlib==3.10.0
+seaborn==0.13.2
+statsmodels==0.14.5
+
+# Biblioteca customizada Zetta
+# IMPORTANTE: O repositório precisa ser público para funcionar sem autenticação
+# Caso seja privado, configure GITHUB_TOKEN nos secrets do Streamlit Cloud
+git+https://github.com/datasciencezetta/dc_zetta_utils.git@457987277013b9501f76f752220ed3fce18944b7
+
+# Utilidades
+python-dotenv==1.0.0
+
+# ═══════════════════════════════════════════════════════════
+# Notas para Deploy
+# ═══════════════════════════════════════════════════════════
+# 1. Certifique-se que o arquivo de dados está no caminho correto
+# 2. Configure as variáveis de ambiente no Streamlit Cloud se necessário
+# 3. Teste localmente antes do deploy: streamlit run app.py

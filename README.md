@@ -1,7 +1,7 @@
-# 📑 Dashboard Similaridade CAR-SIGEF
+# � Dashboard Similaridade CAR-SIGEF
 ## Solução para Governo Federal - MGI
 
-> **Dashboard de análise de conformidade fundiária que cruza 1,3+ milhões de registros CAR vs SIGEF. Desenvolvido para o Ministério da Gestão e Inovação (MGI) com performance otimizada via DuckDB. Servirá como base para deploy em plataforma federal.**
+> **Dashboard de análise de conformidade fundiária que cruza 1,3+ milhões de registros CAR vs SIGEF. Desenvolvido para o Ministério da Gestão e Inovação (MGI) com performance otimizada via DuckDB.**
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](#)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -12,7 +12,9 @@
 
 **Desenvolvedor:** Denner Caleare | [GitHub](https://github.com/DennerCaleare) | [LinkedIn](https://linkedin.com/in/dennercaleare)
 
-**Status:** 🚀 Pronto para deploy federal
+**Status:** ✅ Versão estável - Pronta para produção
+
+**Última atualização:** Janeiro 2026
 
 ---
 
@@ -64,14 +66,13 @@ O Ministério da Gestão precisava de uma forma de:
 ## 🛠️ Stack Técnico (Otimizado)
 
 ```python
-Streamlit 1.32+         # Framework web responsivo
-DuckDB                 # Motor SQL in-memory de alta performance
-Pandas 2.0+            # Processamento de dados
-GeoPandas 0.14+        # Análise geoespacial
+Streamlit 1.49+         # Framework web responsivo
+DuckDB 1.4+            # Motor SQL in-memory de alta performance
+Pandas 2.3+            # Processamento de dados
 Matplotlib/Seaborn     # Visualizações customizadas
-Statsmodels            # Mosaic plots e análise estatística
-shapely 2.0+           # Geometrias espaciais
-Python 3.11+           # Linguagem
+Statsmodels 0.14+      # Mosaic plots e análise estatística
+Python 3.11+           # Linguagem base
+Zetta Utils            # Biblioteca customizada de visualizações
 ```
 
 ## 🎛️ Performance & Escala
@@ -80,83 +81,109 @@ Python 3.11+           # Linguagem
 |---------|-------|
 | Total de registros | 1.3+ milhões |
 | Tempo de query | < 2s |
-| Memória em uso | Otimizada para 4GB |
+| Memória otimizada | 4GB recomendado |
 | Escalabilidade | Preparado para 5M+ registros |
 | Cache | Inteligente por filtro |
+| Queries SQL | Agregações otimizadas in-memory |
 
 ## 📂 Estrutura do Projeto
 
 ```
 dashboard-similaridade-car-sigef/
 ├── app.py                              # Aplicação principal
-├── requirements.txt                   # Dependências
-├── README.md                          # Este arquivo
+├── requirements.txt                    # Dependências (desenvolvimento local)
+├── requirements_cloud.txt              # Dependências (Streamlit Cloud)
+├── README.md                           # Este arquivo
+├── LICENSE                             # MIT License
+├── .gitignore                          # Arquivos ignorados pelo Git
 ├── .streamlit/
-│   └── config.toml                    # Configurações Streamlit
+│   └── config.toml                     # Configurações do Streamlit
+├── assets/
+│   └── LogoZetta.png                   # Logo da Agência Zetta
 ├── data/
-│   └── similaridade_sicar_sigef_brasil.csv
-├── src/
-│   ├── config/
-│   │   ├── constants.py              # Constantes globais
-│   │   └── styles.py               # Estilos CSS
-│   ├── utils/
-│   │   ├── database.py             # Conexao DuckDB
-│   │   ├── filters.py              # Filtros interativos
-│   │   └── visualizations.py       # Gráficos
-│   └── __init__.py
-├── .env.example                       # Variáveis de ambiente
-├── LICENSE                           # MIT License
-└── .gitignore
+│   └── similaridade_sicar_sigef_brasil.csv  # Dataset principal
+└── src/
+    ├── __init__.py
+    ├── config/
+    │   └── __init__.py                 # Constantes e configurações
+    └── utils/
+        └── __init__.py                 # Funções utilitárias
 ```
 
 ## 🚀 Como Usar
 
-### Instalação
+### Instalação Local
 ```bash
+# Clonar o repositório
 git clone https://github.com/DennerCaleare/dashboard-similaridade-car-sigef.git
 cd dashboard-similaridade-car-sigef
+
+# Criar ambiente virtual (recomendado)
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+# ou
+source .venv/bin/activate  # Linux/Mac
+
+# Instalar dependências
 pip install -r requirements.txt
+
+# Executar o dashboard
 streamlit run app.py
 ```
 
-### Arquivo de Dados
-Certifique-se que o CSV está em:
-```
-data/similaridade_sicar_sigef_brasil.csv
-```
+### Deploy no Streamlit Cloud
+1. Faça fork deste repositório
+2. Acesse [share.streamlit.io](https://share.streamlit.io)
+3. Conecte sua conta do GitHub
+4. Selecione o repositório e branch
+5. Configure o arquivo principal como `app.py`
+6. Use `requirements_cloud.txt` como arquivo de dependências
+7. Deploy! 🚀
 
-## 📁 Saídas do Dashboard
+### Requisitos
+- Python 3.11 ou superior
+- 4GB de RAM (mínimo)
+- Arquivo CSV de dados no caminho `data/similaridade_sicar_sigef_brasil.csv`
 
-- 📋 Tabelas paginadas com 50 registros
-- 📈 17+ visualizações especializadas
-- 💤 Filtros dinâmicos em tempo real
-- 📄 Export em Excel, CSV, JSON
-- 💺 Insights de risco por região
+## � Saídas do Dashboard
 
-## 📙 Impacto para MGI
+- 📊 **17+ visualizações especializadas** para análise de conformidade
+- 🎯 **Filtros dinâmicos em tempo real** por região, UF, tamanho e status
+- 💡 **Métricas agregadas otimizadas** via SQL in-memory
+- 📉 **Análises temporais** de evolução da similaridade
+- 🗺️ **Matriz de maturidade fundiária** por estado
+- 🎨 **Visualizações interativas** com gráficos responsivos
+- ⚡ **Cache inteligente** para melhor performance
 
-✅ **Conformidade** - Identifica incongruências CAR vs SIGEF
-✅ **Risco** - Mapeia áreas de má qualidade cadastral
-✅ **Decisão** - Suporta estratégias de retificação
-✅ **Escalabilidade** - Pronto para integração com sistemas federais
-✅ **Documentação** - Metodologia clara para replicação
+## 🎯 Impacto para MGI
+
+✅ **Conformidade** - Identifica incongruências entre CAR e SIGEF  
+✅ **Risco** - Mapeia áreas de baixa qualidade cadastral  
+✅ **Decisão** - Suporta estratégias de retificação fundiária  
+✅ **Escalabilidade** - Pronto para integração com sistemas federais  
+✅ **Documentação** - Metodologia clara e replicável  
+✅ **Performance** - Otimizado para grandes volumes de dados
 
 ## 👨‍💻 Desenvolvido por
 
 **Denner Caleare**
 
-- 🌟 Especialista em dashboards para governo
-- 📚 Performance expert (DuckDB, Streamlit)
-- 💼 Agência Zetta - UFLA
+- � Especialista em dashboards para governo
+- ⚡ Performance expert (DuckDB, Streamlit, Python)
+- 🏢 Agência Zetta - UFLA
 
 **Contato:**
-- [GitHub](https://github.com/DennerCaleare)
-- [LinkedIn](https://linkedin.com/in/dennercaleare)
+- GitHub: [@DennerCaleare](https://github.com/DennerCaleare)
+- LinkedIn: [dennercaleare](https://linkedin.com/in/dennercaleare)
 
 ## 📝 Licença
 
-MIT License - Desenvolvido para Ministério da Gestão e Inovação (MGI)
+MIT License - Projeto desenvolvido para o Ministério da Gestão e Inovação (MGI)
+
+Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
 ---
 
 **Desenvolvido com ❤️ em Lavras, MG | Agência Zetta - UFLA**
+
+**Janeiro 2026**
