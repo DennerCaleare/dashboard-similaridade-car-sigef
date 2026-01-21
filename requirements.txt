@@ -18,7 +18,7 @@ numpy==2.3.4
 matplotlib==3.10.0
 seaborn==0.13.2
 statsmodels==0.14.5
-geopandas==0.14.1
+plotly==5.24.1
 
 # Biblioteca customizada Zetta (funções de visualização otimizadas)
 git+https://github.com/datasciencezetta/dc_zetta_utils.git@457987277013b9501f76f752220ed3fce18944b7

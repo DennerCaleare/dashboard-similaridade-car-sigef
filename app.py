@@ -35,9 +35,9 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import seaborn as sns
 import zetta_utils as zt
-import geopandas as gpd
-import requests
-from io import BytesIO
+import plotly.express as px
+import plotly.graph_objects as go
+import json
 
 # Imports locais - Configurações
 from src.config import (
@@ -119,30 +119,29 @@ def show_progress_bar(message: str = "Carregando dados...", duration: float = 1.
     progress_bar.empty()
 
 @st.cache_data(ttl=3600)
-def load_brazil_geodata():
-    """Carrega shapefile do Brasil por UF do IBGE.
+def load_brazil_geojson():
+    """Carrega GeoJSON do Brasil por UF.
     
     Returns:
-        GeoDataFrame com geometrias dos estados brasileiros
+        dict com GeoJSON dos estados brasileiros
     """
+    import urllib.request
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
-    gdf = gpd.read_file(url)
-    # Padronizar coluna de sigla da UF
-    gdf['sigla'] = gdf['sigla'].str.upper() if 'sigla' in gdf.columns else gdf['name'].str.upper()
-    return gdf
+    with urllib.request.urlopen(url) as response:
+        return json.loads(response.read().decode('utf-8'))
 
 def create_brazil_choropleth_map(df, metric='jaccard_medio'):
-    """Cria mapa coroplético do Brasil por UF.
+    """Cria mapa coroplético do Brasil por UF usando Plotly.
     
     Args:
         df: DataFrame com dados por estado
         metric: Métrica a ser visualizada ('jaccard_medio' padrão)
         
     Returns:
-        Figura matplotlib com o mapa
+        Figura plotly com o mapa
     """
-    # Carregar geometrias do Brasil
-    gdf_brasil = load_brazil_geodata()
+    # Carregar GeoJSON do Brasil
+    geojson = load_brazil_geojson()
     
     # Calcular similaridade média por UF
     df_ufs = df.groupby('estado').agg({
@@ -151,83 +150,43 @@ def create_brazil_choropleth_map(df, metric='jaccard_medio'):
     df_ufs.columns = ['sigla', 'similaridade']
     df_ufs['similaridade'] = df_ufs['similaridade'] * 100  # Converter para percentual
     
-    # Merge com geodata
-    gdf_map = gdf_brasil.merge(df_ufs, on='sigla', how='left')
-    
-    # Criar figura compacta
-    fig, ax = plt.subplots(1, 1, figsize=(4.5, 3.5))
-    
-    # Definir colormap vermelho-verde
-    from matplotlib.colors import LinearSegmentedColormap
-    colors = ['#e57373', '#ffb74d', '#fff176', '#aed581', '#81c784']  # Vermelho -> Verde
-    n_bins = 50
-    cmap = LinearSegmentedColormap.from_list('similaridade', colors, N=n_bins)
-    
-    # Plotar mapa
-    gdf_map.plot(
-        column='similaridade',
-        cmap=cmap,
-        linewidth=0.3,
-        ax=ax,
-        edgecolor='white',
-        legend=True,
-        legend_kwds={
-            'label': 'Similaridade (%)',
-            'orientation': 'vertical',
-            'shrink': 0.45,
-            'pad': 0.02,
-            'aspect': 12
-        },
-        missing_kwds={'color': '#e0e0e0'}
+    # Criar mapa com Plotly
+    fig = px.choropleth(
+        df_ufs,
+        geojson=geojson,
+        locations='sigla',
+        featureidkey='properties.sigla',
+        color='similaridade',
+        color_continuous_scale=['#e57373', '#ffb74d', '#fff176', '#aed581', '#81c784'],
+        range_color=[0, 100],
+        labels={'similaridade': 'Similaridade (%)'},
+        hover_data={'sigla': True, 'similaridade': ':.1f'}
     )
     
-    # Ajustar fonte da legenda
-    cbar = ax.get_figure().axes[-1]
-    cbar.tick_params(labelsize=6)
-    cbar.set_ylabel('Similaridade (%)', fontsize=7)
+    fig.update_geos(
+        fitbounds="locations",
+        visible=False,
+        showcountries=False,
+        showcoastlines=False,
+        showland=False,
+        showocean=False,
+        showlakes=False,
+        showrivers=False
+    )
     
-    # Adicionar labels das UFs
-    # Ajustes de posição para estados pequenos que se sobrepõem
-    offsets = {
-        'SE': (0.3, 0),    # Sergipe - mover um pouco para direita
-        'AL': (0, 0.3),     # Alagoas - mover um pouco para cima
-        'PE': (-0.2, 0.2),  # Pernambuco - ajustar diagonal
-        'PB': (0.2, 0.2),   # Paraíba - ajustar diagonal
-        'RN': (0.3, 0),     # Rio Grande do Norte - mover para direita
-        'DF': (0, -0.15),   # Distrito Federal - mover para baixo
-        'RJ': (0.2, -0.1),  # Rio de Janeiro - ajustar
-        'ES': (0.15, 0),    # Espírito Santo - mover para direita
-    }
+    fig.update_layout(
+        title={'text': 'Similaridade por Estado', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 10}},
+        margin=dict(l=0, r=0, t=30, b=0),
+        height=300,
+        coloraxis_colorbar=dict(
+            title="Similaridade (%)",
+            titlefont=dict(size=7),
+            tickfont=dict(size=6),
+            len=0.45,
+            thickness=10
+        )
+    )
     
-    for idx, row in gdf_map.iterrows():
-        if pd.notna(row['similaridade']):
-            centroid = row['geometry'].centroid
-            sigla = row['sigla']
-            
-            # Aplicar offset se existir
-            x_offset, y_offset = offsets.get(sigla, (0, 0))
-            x = centroid.x + x_offset
-            y = centroid.y + y_offset
-            
-            # Estados menores: fonte menor
-            area = row['geometry'].area
-            fontsize = 3.5 if area < 5 else 4.5
-            pad = 0.08 if area < 5 else 0.1
-            
-            ax.text(
-                x, y, 
-                f"{sigla}\n{row['similaridade']:.1f}%",
-                fontsize=fontsize, ha='center', va='center',
-                fontweight='bold',
-                color='black',
-                bbox=dict(boxstyle='round,pad=' + str(pad), facecolor='white', alpha=0.7, edgecolor='none')
-            )
-    
-    # Remover eixos
-    ax.axis('off')
-    ax.set_title('Similaridade por Estado', fontsize=9, fontweight='bold', pad=5)
-    
-    plt.tight_layout()
     return fig
 
 def create_brazil_titularidade_map(df):
@@ -237,10 +196,10 @@ def create_brazil_titularidade_map(df):
         df: DataFrame com dados por estado e coluna cpf_ok
         
     Returns:
-        Figura matplotlib com o mapa
+        Figura plotly com o mapa
     """
-    # Carregar geometrias do Brasil
-    gdf_brasil = load_brazil_geodata()
+    # Carregar GeoJSON do Brasil
+    geojson = load_brazil_geojson()
     
     # Calcular % de CPF igual por UF
     df_ufs = df.groupby('estado').agg({
@@ -249,83 +208,43 @@ def create_brazil_titularidade_map(df):
     df_ufs.columns = ['sigla', 'cpf_igual']
     df_ufs['cpf_igual'] = df_ufs['cpf_igual'] * 100  # Converter para percentual
     
-    # Merge com geodata
-    gdf_map = gdf_brasil.merge(df_ufs, on='sigla', how='left')
-    
-    # Criar figura compacta
-    fig, ax = plt.subplots(1, 1, figsize=(4.5, 3.5))
-    
-    # Definir colormap vermelho-verde (mesma escala do outro mapa)
-    from matplotlib.colors import LinearSegmentedColormap
-    colors = ['#e57373', '#ffb74d', '#fff176', '#aed581', '#81c784']  # Vermelho -> Verde
-    n_bins = 50
-    cmap = LinearSegmentedColormap.from_list('titularidade', colors, N=n_bins)
-    
-    # Plotar mapa
-    gdf_map.plot(
-        column='cpf_igual',
-        cmap=cmap,
-        linewidth=0.3,
-        ax=ax,
-        edgecolor='white',
-        legend=True,
-        legend_kwds={
-            'label': 'CPF Igual (%)',
-            'orientation': 'vertical',
-            'shrink': 0.45,
-            'pad': 0.02,
-            'aspect': 12
-        },
-        missing_kwds={'color': '#e0e0e0'}
+    # Criar mapa com Plotly
+    fig = px.choropleth(
+        df_ufs,
+        geojson=geojson,
+        locations='sigla',
+        featureidkey='properties.sigla',
+        color='cpf_igual',
+        color_continuous_scale=['#e57373', '#ffb74d', '#fff176', '#aed581', '#81c784'],
+        range_color=[0, 100],
+        labels={'cpf_igual': 'CPF Igual (%)'},
+        hover_data={'sigla': True, 'cpf_igual': ':.1f'}
     )
     
-    # Ajustar fonte da legenda
-    cbar = ax.get_figure().axes[-1]
-    cbar.tick_params(labelsize=6)
-    cbar.set_ylabel('CPF Igual (%)', fontsize=7)
+    fig.update_geos(
+        fitbounds="locations",
+        visible=False,
+        showcountries=False,
+        showcoastlines=False,
+        showland=False,
+        showocean=False,
+        showlakes=False,
+        showrivers=False
+    )
     
-    # Adicionar labels das UFs
-    # Ajustes de posição para estados pequenos que se sobrepõem
-    offsets = {
-        'SE': (0.3, 0),    # Sergipe - mover um pouco para direita
-        'AL': (0, 0.3),     # Alagoas - mover um pouco para cima
-        'PE': (-0.2, 0.2),  # Pernambuco - ajustar diagonal
-        'PB': (0.2, 0.2),   # Paraíba - ajustar diagonal
-        'RN': (0.3, 0),     # Rio Grande do Norte - mover para direita
-        'DF': (0, -0.15),   # Distrito Federal - mover para baixo
-        'RJ': (0.2, -0.1),  # Rio de Janeiro - ajustar
-        'ES': (0.15, 0),    # Espírito Santo - mover para direita
-    }
+    fig.update_layout(
+        title={'text': 'Titularidade por Estado', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 10}},
+        margin=dict(l=0, r=0, t=30, b=0),
+        height=300,
+        coloraxis_colorbar=dict(
+            title="CPF Igual (%)",
+            titlefont=dict(size=7),
+            tickfont=dict(size=6),
+            len=0.45,
+            thickness=10
+        )
+    )
     
-    for idx, row in gdf_map.iterrows():
-        if pd.notna(row['cpf_igual']):
-            centroid = row['geometry'].centroid
-            sigla = row['sigla']
-            
-            # Aplicar offset se existir
-            x_offset, y_offset = offsets.get(sigla, (0, 0))
-            x = centroid.x + x_offset
-            y = centroid.y + y_offset
-            
-            # Estados menores: fonte menor
-            area = row['geometry'].area
-            fontsize = 3.5 if area < 5 else 4.5
-            pad = 0.08 if area < 5 else 0.1
-            
-            ax.text(
-                x, y, 
-                f"{sigla}\n{row['cpf_igual']:.1f}%",
-                fontsize=fontsize, ha='center', va='center',
-                fontweight='bold',
-                color='black',
-                bbox=dict(boxstyle='round,pad=' + str(pad), facecolor='white', alpha=0.7, edgecolor='none')
-            )
-    
-    # Remover eixos
-    ax.axis('off')
-    ax.set_title('Titularidade por Estado', fontsize=9, fontweight='bold', pad=5)
-    
-    plt.tight_layout()
     return fig
 
 def get_layout_columns(mobile_cols: int = 2, desktop_cols: int = 4) -> int:
@@ -621,13 +540,11 @@ with st.expander("Mapa de Similaridade por Estado", expanded=True):
             
             with col1:
                 fig_mapa = create_brazil_choropleth_map(df_filtrado)
-                st.pyplot(fig_mapa, use_container_width=False)
-                plt.close()
+                st.plotly_chart(fig_mapa, use_container_width=True)
             
             with col2:
                 fig_titularidade = create_brazil_titularidade_map(df_filtrado)
-                st.pyplot(fig_titularidade, use_container_width=False)
-                plt.close()
+                st.plotly_chart(fig_titularidade, use_container_width=True)
                 
         except Exception as e:
             st.error(f"❌ Erro ao criar mapa: {str(e)}")
