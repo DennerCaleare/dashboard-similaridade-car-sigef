@@ -17,25 +17,36 @@ Autor: Denner Caleare
 Data: Janeiro 2026
 """
 
-import streamlit as st
+# ═══════════════════════════════════════════════════════════
+# IMPORTS
+# ═══════════════════════════════════════════════════════════
+
+# Bibliotecas padrão Python
+import os
+import base64
+
+# Bibliotecas de terceiros - Data
 import pandas as pd
 import numpy as np
+import duckdb
+
+# Bibliotecas de terceiros - Visualização
+import streamlit as st
 import matplotlib.pyplot as plt
 import seaborn as sns
 import zetta_utils as zt
-import os
-import base64
-import matplotlib.patches as mpatches
 
-# Imports locais
+# Imports locais - Configurações
 from src.config import (
     CSS_CUSTOM, CORES_FAIXA_JACCARD, CORES_TAMANHO, CORES_STATUS,
     CORES_EVOLUCAO_TAMANHO, CORES_EVOLUCAO_REGIAO, CORES_TITULARIDADE,
     CORES_MATURIDADE_REGIAO, JACCARD_LABELS, LABELS_STATUS, REGIOES_NOME_MAP,
     DISCREPANCIA_MIN, DISCREPANCIA_MAX, LOGO_FOOTER_PATH, ANO_MIN, ANO_MAX
 )
+
+# Imports locais - Utilitários
 from src.utils import (
-    load_metadata, load_filtered_data, get_total_records, create_risk_matrix,
+    load_metadata, load_filtered_data, get_total_records,
     format_number, create_quadrant_background, add_quadrant_labels,
     display_region_filter, display_uf_filter, display_size_filter,
     display_status_filter, display_filter_summary, get_aggregated_stats
@@ -46,13 +57,18 @@ from src.utils import (
 # ═══════════════════════════════════════════════════════════
 
 CONFIG = {
-    'MIN_RECORDS_FOR_ANALYSIS': 10,
-    'MIN_RECORDS_FOR_DENSITY': 10,
-    'SHOW_DEBUG_INFO': False,
-    'DEFAULT_FIGSIZE': (12, 6),
-    'MOBILE_BREAKPOINT': 768,  # pixels
-    'PROGRESS_SLEEP': 0.01,
-    'SUCCESS_MESSAGE_DURATION': 0.3
+    # Limites de dados para análises
+    'MIN_RECORDS_FOR_ANALYSIS': 10,      # Mínimo de registros para análises gerais
+    'MIN_RECORDS_FOR_DENSITY': 10,       # Mínimo de registros para gráficos KDE
+    
+    # Performance e otimização
+    'SHOW_DEBUG_INFO': False,            # Mostrar informações de debug
+    'PROGRESS_SLEEP': 0.01,              # Intervalo para animação de progresso (segundos)
+    'SUCCESS_MESSAGE_DURATION': 0.3,     # Duração de mensagens de sucesso (segundos)
+    
+    # Configurações visuais
+    'DEFAULT_FIGSIZE': (12, 6),          # Tamanho padrão de figuras matplotlib
+    'MOBILE_BREAKPOINT': 768,            # Breakpoint para layout mobile (pixels)
 }
 
 # ═══════════════════════════════════════════════════════════
@@ -267,6 +283,9 @@ if need_region_data:
                 tamanhos=tamanhos_selecionados if tamanhos_selecionados else None,
                 status=status_selecionados if status_selecionados else None
             )
+            # Garantir que df_regiao não é None
+            if df_regiao is None or (isinstance(df_regiao, pd.DataFrame) and df_regiao.empty):
+                df_regiao = df_filtrado  # Usar dados filtrados como fallback
             st.session_state.df_regiao_cached = df_regiao
             st.session_state.last_regiao_filters = regiao_filters
             status_regional.empty()
@@ -344,7 +363,7 @@ with st.container():
     with col3:
         st.markdown(f"""
             <div class='metric-container'>
-                <div class='metric-label'>Mediana Jaccard</div>
+                <div class='metric-label'>Similaridade Mediana</div>
                 <div class='metric-value'>{stats['median_jaccard']:.1f}%</div>
             </div>
         """, unsafe_allow_html=True)
@@ -369,64 +388,67 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
     else:
         st.markdown("<h3 style='text-align: center;'>Similaridade e Titularidade por UF</h3>", unsafe_allow_html=True)
 
-        # Verificar se há mais de 1 UF selecionada
-        num_ufs = df_filtrado['estado'].nunique()
+        # Verificar se há mais de 1 UF selecionada e se a coluna existe
+        if 'estado' not in df_filtrado.columns:
+            st.error("❌ Erro: Coluna 'estado' não encontrada nos dados.")
+        else:
+            num_ufs = df_filtrado['estado'].nunique()
 
-        if num_ufs > 1:
-            col1, col2 = st.columns(2)
+            if num_ufs > 1:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Altura fixa compacta para o gráfico de barras verticais
+                    height = 4.5
+                    zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=(6, height))
+                    # Tamanho da fonte responsivo baseado no número de UFs
+                    ax = plt.gca()
+                    num_ufs_grafico = df_filtrado['estado'].nunique()
+                    # Quando poucas UFs: fonte maior (10-12), quando muitas: fonte menor (6-7)
+                    if num_ufs_grafico <= 5:
+                        fontsize = 10
+                    elif num_ufs_grafico <= 10:
+                        fontsize = 8
+                    elif num_ufs_grafico <= 20:
+                        fontsize = 6
+                    else:
+                        fontsize = 5
+                    for text in ax.texts:
+                        text.set_fontsize(fontsize)
+                        text.set_weight('bold')
+                    st.pyplot(plt.gcf())
+                    plt.close()
             
-            with col1:
-                # Altura fixa compacta para o gráfico de barras verticais
-                height = 4.5
-                zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=(6, height))
-                # Tamanho da fonte responsivo baseado no número de UFs
-                ax = plt.gca()
-                num_ufs_grafico = df_filtrado['estado'].nunique()
-                # Quando poucas UFs: fonte maior (10-12), quando muitas: fonte menor (6-7)
-                if num_ufs_grafico <= 5:
-                    fontsize = 10
-                elif num_ufs_grafico <= 10:
-                    fontsize = 8
-                elif num_ufs_grafico <= 20:
-                    fontsize = 6
-                else:
-                    fontsize = 5
-                for text in ax.texts:
-                    text.set_fontsize(fontsize)
-                    text.set_weight('bold')
-                st.pyplot(plt.gcf())
-                plt.close()
-            
-            with col2:
-                # Gráfico por região SEM filtro de UF (dados completos)
+                with col2:
+                    # Gráfico por região SEM filtro de UF (dados completos)
+                    if len(df_regiao) > 0:
+                        num_regioes = df_regiao['regiao'].nunique()
+                        height_regiao = 4.5  # Mesma altura do gráfico de barras
+                        zt.stacked_bar_plot(
+                            df_regiao, y="regiao", hue="faixa_jaccard",
+                            order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
+                            legend_title="Percentual de Similaridade CAR-SIGEF",
+                            show_pct_symbol=True, figsize=(6, height_regiao), legend_cols=5
+                        )
+                        st.pyplot(plt.gcf())
+                        plt.close()
+                    else:
+                        st.info("Sem dados para panorama regional.")
+            else:
+                # Quando apenas 1 UF selecionada, mostrar apenas o gráfico por região
                 if len(df_regiao) > 0:
                     num_regioes = df_regiao['regiao'].nunique()
-                    height_regiao = 4.5  # Mesma altura do gráfico de barras
+                    height_regiao = max(2.5, min(5, num_regioes * 0.8))
                     zt.stacked_bar_plot(
                         df_regiao, y="regiao", hue="faixa_jaccard",
                         order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
                         legend_title="Percentual de Similaridade CAR-SIGEF",
-                        show_pct_symbol=True, figsize=(6, height_regiao), legend_cols=5
+                        show_pct_symbol=True, figsize=(12, height_regiao), legend_cols=5
                     )
                     st.pyplot(plt.gcf())
                     plt.close()
                 else:
                     st.info("Sem dados para panorama regional.")
-        else:
-            # Quando apenas 1 UF selecionada, mostrar apenas o gráfico por região
-            if len(df_regiao) > 0:
-                num_regioes = df_regiao['regiao'].nunique()
-                height_regiao = max(2.5, min(5, num_regioes * 0.8))
-                zt.stacked_bar_plot(
-                    df_regiao, y="regiao", hue="faixa_jaccard",
-                    order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
-                    legend_title="Percentual de Similaridade CAR-SIGEF",
-                    show_pct_symbol=True, figsize=(12, height_regiao), legend_cols=5
-                )
-                st.pyplot(plt.gcf())
-                plt.close()
-            else:
-                st.info("Sem dados para panorama regional.")
 
         st.markdown("---")
 
@@ -488,44 +510,54 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
 
         # Verificar se há dados suficientes
         if validate_data(df_filtrado, "Análise de Densidade KDE", min_records=CONFIG['MIN_RECORDS_FOR_DENSITY']):
-            # KDE plots lado a lado
+            # KDE plots lado a lado usando DuckDB para filtros otimizados
             col1, col2 = st.columns(2)
         
             with col1:
                 st.markdown("<h4 style='text-align: center;'>Densidade por Tamanho</h4>", unsafe_allow_html=True)
                 try:
-                    # Filtrar dados válidos e converter para percentual
-                    df_kde = df_filtrado[df_filtrado['class_tam_imovel'].notna() & df_filtrado['indice_jaccard'].notna()].copy()
-                    df_kde['indice_jaccard_pct'] = df_kde['indice_jaccard'] * 100
-                    tamanhos_disponiveis = df_kde['class_tam_imovel'].unique()
+                    # Query DuckDB otimizada
+                    query_tam = """
+                    SELECT 
+                        indice_jaccard * 100 as indice_jaccard_pct,
+                        class_tam_imovel
+                    FROM df_filtrado
+                    WHERE indice_jaccard IS NOT NULL 
+                      AND class_tam_imovel IS NOT NULL
+                    """
+                    df_plot = duckdb.query(query_tam).df()
+                    tamanhos_disponiveis = df_plot['class_tam_imovel'].unique()
                     
-                    if len(df_kde) >= 10 and len(tamanhos_disponiveis) > 0:
-                        fig, ax = plt.subplots(figsize=(7, 4))
+                    if len(df_plot) >= 10 and len(tamanhos_disponiveis) > 0:
+                        fig, ax = plt.subplots(figsize=(7, 4.5))
                         
                         sns.kdeplot(
-                            data=df_kde, x="indice_jaccard_pct", hue="class_tam_imovel",
+                            data=df_plot, x="indice_jaccard_pct", hue="class_tam_imovel",
                             hue_order=[t for t in ["Pequeno", "Médio", "Grande"] if t in tamanhos_disponiveis],
-                            fill=True, common_norm=False, alpha=0.2, linewidth=2,
+                            fill=True, common_norm=False, alpha=0.2, linewidth=3,
                             palette={k: v for k, v in CORES_TAMANHO.items() if k in tamanhos_disponiveis},
                             clip=(0, 100), legend=False, ax=ax, warn_singular=False
                         )
+                        
+                        # Estilo minimalista - remover eixo Y
                         ax.set_yticks([])
                         ax.set_ylabel("")
-                        ax.set_xlabel("Percentual de Similaridade", fontsize=9, color="grey")
+                        ax.set_xlabel("Similaridade (%)", fontsize=11, color="grey")
                         sns.despine(left=True, ax=ax)
                         
-                        # Adicionar labels apenas para tamanhos presentes nos dados
+                        # Labels diretos nas curvas (sem caixa de legenda)
                         y_max = ax.get_ylim()[1]
                         if "Pequeno" in tamanhos_disponiveis:
-                            ax.text(5, y_max * 0.15, "Pequeno", color=CORES_TAMANHO["Pequeno"], 
-                                   fontsize=10, fontweight='bold')
+                            ax.text(2, y_max * 0.15, "Pequeno", color=CORES_TAMANHO["Pequeno"], 
+                                   fontsize=14, fontweight='bold')
                         if "Médio" in tamanhos_disponiveis:
-                            ax.text(85, y_max * 0.85, "Médio", color=CORES_TAMANHO["Médio"], 
-                                   fontsize=10, fontweight='bold', ha='right')
+                            ax.text(90, y_max * 0.85, "Médio", color=CORES_TAMANHO["Médio"], 
+                                   fontsize=14, fontweight='bold', ha='right')
                         if "Grande" in tamanhos_disponiveis:
-                            ax.text(85, y_max * 0.70, "Grande", color=CORES_TAMANHO["Grande"], 
-                                   fontsize=10, fontweight='bold', ha='right')
+                            ax.text(90, y_max * 0.70, "Grande", color=CORES_TAMANHO["Grande"], 
+                                   fontsize=14, fontweight='bold', ha='right')
                         
+                        plt.tight_layout()
                         st.pyplot(fig)
                         plt.close()
                     else:
@@ -537,29 +569,38 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
             with col2:
                 st.markdown("<h4 style='text-align: center;'>Densidade por Status</h4>", unsafe_allow_html=True)
                 try:
-                    # Filtrar dados válidos e converter para percentual
-                    df_kde_status = df_filtrado[df_filtrado['status_imovel'].notna() & df_filtrado['indice_jaccard'].notna()].copy()
-                    df_kde_status['indice_jaccard_pct'] = df_kde_status['indice_jaccard'] * 100
-                    status_disponiveis = df_kde_status['status_imovel'].unique()
+                    # Query DuckDB otimizada
+                    query_status = """
+                    SELECT 
+                        indice_jaccard * 100 as indice_jaccard_pct,
+                        status_imovel
+                    FROM df_filtrado
+                    WHERE indice_jaccard IS NOT NULL 
+                      AND status_imovel IS NOT NULL
+                    """
+                    df_plot = duckdb.query(query_status).df()
+                    status_disponiveis = df_plot['status_imovel'].unique()
                     
-                    if len(df_kde_status) >= 10 and len(status_disponiveis) > 0:
-                        fig, ax = plt.subplots(figsize=(7, 4))
+                    if len(df_plot) >= 10 and len(status_disponiveis) > 0:
+                        fig, ax = plt.subplots(figsize=(7, 4.5))
                         
                         sns.kdeplot(
-                            data=df_kde_status, x="indice_jaccard_pct", hue="status_imovel",
-                            fill=True, common_norm=False, alpha=0.2, linewidth=2,
+                            data=df_plot, x="indice_jaccard_pct", hue="status_imovel",
+                            fill=True, common_norm=False, alpha=0.2, linewidth=3,
                             palette={k: v for k, v in CORES_STATUS.items() if k in status_disponiveis},
                             clip=(0, 100), legend=False, ax=ax, warn_singular=False
                         )
+                        
+                        # Estilo minimalista - remover eixo Y
                         ax.set_yticks([])
                         ax.set_ylabel("")
-                        ax.set_xlabel("Percentual de Similaridade", fontsize=9, color="grey")
+                        ax.set_xlabel("Similaridade (%)", fontsize=11, color="grey")
                         sns.despine(left=True, ax=ax)
                         
-                        # Adicionar labels dinamicamente com base nos dados
+                        # Labels diretos nas curvas (sem caixa de legenda)
                         y_max = ax.get_ylim()[1]
                         y_positions = {'SU': 0.15, 'PE': 0.85, 'AT': 0.70}
-                        x_positions = {'SU': 5, 'PE': 85, 'AT': 85}
+                        x_positions = {'SU': 2, 'PE': 90, 'AT': 90}
                         ha_align = {'SU': 'left', 'PE': 'right', 'AT': 'right'}
                         
                         for status_code in status_disponiveis:
@@ -569,10 +610,11 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                                     y=y_max * y_positions.get(status_code, 0.5),
                                     s=LABELS_STATUS.get(status_code, status_code),
                                     color=CORES_STATUS[status_code],
-                                    fontsize=10, fontweight='bold',
+                                    fontsize=14, fontweight='bold',
                                     ha=ha_align.get(status_code, 'center')
                                 )
                         
+                        plt.tight_layout()
                         st.pyplot(fig)
                         plt.close()
                     else:
@@ -599,136 +641,160 @@ st.markdown("---")
 # 2. EVOLUÇÃO TEMPORAL
 # ═══════════════════════════════════════════════════════════
 
-with st.expander("Evolução da Similaridade", expanded=True):
-    if len(df_filtrado) == 0:
-        st.warning("⚠️ Nenhum registro encontrado com os filtros selecionados. Ajuste os filtros para visualizar os dados.")
-    elif 'ano_cadastro' in df_filtrado.columns and df_filtrado['ano_cadastro'].notna().any():
-        df_tempo = df_filtrado[df_filtrado['ano_cadastro'].notna()].copy()
-        df_tempo['ano'] = df_tempo['ano_cadastro'].astype(int)
-        df_tempo = df_tempo[(df_tempo['ano'] >= ANO_MIN) & (df_tempo['ano'] <= ANO_MAX)]
-        
-        if len(df_tempo) > 0 and df_tempo['ano'].nunique() > 1:
-            st.markdown("<h3 style='text-align: center;'>Volume de CARs e Similaridade Mediana por Ano</h3>", unsafe_allow_html=True)
+with st.expander("Evolução Temporal", expanded=True):
+    if not validate_data(df_filtrado, "Evolução Temporal", min_records=CONFIG['MIN_RECORDS_FOR_ANALYSIS']):
+        pass  # Mensagem já exibida pela função
+    else:
+        # Verificar se coluna existe
+        if 'data_cadastro_imovel' not in df_filtrado.columns:
+            st.warning("⚠️ Coluna de data não disponível para análise temporal.")
+        else:
+            df_tempo = df_filtrado[df_filtrado['data_cadastro_imovel'].notna()].copy()
             
-            df_ano_total = df_tempo.groupby('ano').size().reset_index(name='total')
-            df_ano_sim = df_tempo.groupby('ano')['indice_jaccard'].median().reset_index()
-            df_ano_sim['indice_jaccard'] = df_ano_sim['indice_jaccard'] * 100  # Converter para percentual
-            
-            if len(df_ano_total) > 1:
-                fig, ax1 = plt.subplots(figsize=(12, 6))
-                x_pos = np.arange(len(df_ano_total))
+            # Converter para datetime com tratamento de erros
+            try:
+                df_tempo['ano'] = pd.to_datetime(df_tempo['data_cadastro_imovel'], errors='coerce').dt.year
+                # Remover anos inválidos (NaN)
+                df_tempo = df_tempo[df_tempo['ano'].notna()]
+                df_tempo['ano'] = df_tempo['ano'].astype(int)
+                df_tempo = df_tempo[(df_tempo['ano'] >= ANO_MIN) & (df_tempo['ano'] <= ANO_MAX)]
+            except Exception as e:
+                st.error(f"❌ Erro ao processar datas: {str(e)}")
+                df_tempo = pd.DataFrame()
+
+            if len(df_tempo) > 0:
+                st.markdown("<h3 style='text-align: center;'>Volume de CARs e Similaridade Mediana por Ano</h3>", unsafe_allow_html=True)
                 
-                # Barras (volume)
-                bars = ax1.bar(x_pos, df_ano_total['total'], color='#e0e0e0', alpha=0.6, width=0.6)
-                for bar, val in zip(bars, df_ano_total['total']):
-                    height = bar.get_height()
-                    label = f"{val/1000:.0f}K" if val >= 1000 else str(val)
-                    ax1.text(bar.get_x() + bar.get_width()/2, height, label,
-                            ha='center', va='bottom', fontsize=8, color='#888888')
+                df_ano_total = df_tempo.groupby('ano').size().reset_index(name='total')
+                df_ano_sim = df_tempo.groupby('ano')['indice_jaccard'].median().reset_index()
+                df_ano_sim['indice_jaccard'] = df_ano_sim['indice_jaccard'] * 100  # Converter para percentual
                 
-                ax1.set_ylabel('Total de CARs', fontsize=10, color='#888888')
-                ax1.tick_params(axis='y', labelcolor='#888888', labelsize=9)
-                ax1.set_ylim(0, df_ano_total['total'].max() * 1.15)
-                
-                # Linha (similaridade)
-                ax2 = ax1.twinx()
-                ax2.plot(x_pos, df_ano_sim['indice_jaccard'], color='#2563eb', linewidth=3,
-                        marker='o', markersize=8, markeredgecolor='white', markeredgewidth=2, zorder=3)
-                
-                for x, y in zip(x_pos, df_ano_sim['indice_jaccard']):
-                    ax2.text(x, y, f"{y:.0f}%", ha='center', va='bottom',
-                            fontsize=9, fontweight='bold', color='#2563eb')
-                
-                ax2.set_ylabel('Similaridade Mediana (%)', fontsize=10, color='#2563eb')
-                ax2.tick_params(axis='y', labelcolor='#2563eb', labelsize=9)
-                
-                ax1.set_xticks(x_pos)
-                ax1.set_xticklabels(df_ano_total['ano'].astype(int), fontsize=10)
-                ax1.set_xlabel('')
-                ax1.spines['top'].set_visible(False)
-                ax2.spines['top'].set_visible(False)
-                ax1.grid(axis='x', linestyle='--', alpha=0.3)
-                
-                plt.tight_layout()
-                st.pyplot(fig)
-                plt.close()
-        
-        st.markdown("---")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("<h3 style='text-align: center;'>Evolução por Tamanho</h3>", unsafe_allow_html=True)
-            if 'class_tam_imovel' in df_tempo.columns:
-                fig, ax = plt.subplots(figsize=(7, 4.5))
-                linhas_plotadas = False
-                
-                for tamanho in ["Pequeno", "Médio", "Grande"]:
-                    df_tam = df_tempo[df_tempo['class_tam_imovel'] == tamanho]
-                    if len(df_tam) > 0:
-                        sim_por_ano = df_tam.groupby('ano')['indice_jaccard'].median().reset_index()
-                        sim_por_ano['indice_jaccard'] = sim_por_ano['indice_jaccard'] * 100  # Converter para percentual
-                        if len(sim_por_ano) > 1:
-                            ax.plot(sim_por_ano['ano'].astype(int), sim_por_ano['indice_jaccard'],
-                                   color=CORES_EVOLUCAO_TAMANHO.get(tamanho, '#333'),
-                                   linewidth=2.5, label=tamanho, marker='o', markersize=6)
-                            linhas_plotadas = True
-                
-                if linhas_plotadas:
-                    ax.set_xlabel('Ano', fontsize=10, color='grey')
-                    ax.set_ylabel('Similaridade Mediana (%)', fontsize=10)
-                    ax.legend(loc='best', frameon=False, fontsize=9)
-                    ax.grid(axis='both', linestyle='--', alpha=0.3)
-                    ax.spines['top'].set_visible(False)
-                    ax.spines['right'].set_visible(False)
+                # Validar dados antes de plotar
+                if len(df_ano_total) > 1 and df_ano_total['total'].max() > 0:
+                    fig, ax1 = plt.subplots(figsize=(12, 6))
+                    x_pos = np.arange(len(df_ano_total))
+                    
+                    # Barras (volume)
+                    bars = ax1.bar(x_pos, df_ano_total['total'], color='#e0e0e0', alpha=0.6, width=0.6)
+                    for bar, val in zip(bars, df_ano_total['total']):
+                        height = bar.get_height()
+                        label = f"{val/1000:.0f}K" if val >= 1000 else str(val)
+                        ax1.text(bar.get_x() + bar.get_width()/2, height, label,
+                                ha='center', va='bottom', fontsize=8, color='#888888')
+                    
+                    ax1.set_ylabel('Total de CARs', fontsize=10, color='#888888')
+                    ax1.tick_params(axis='y', labelcolor='#888888', labelsize=9)
+                    ax1.set_ylim(0, df_ano_total['total'].max() * 1.15)
+                    
+                    # Linha (similaridade)
+                    ax2 = ax1.twinx()
+                    ax2.plot(x_pos, df_ano_sim['indice_jaccard'], color='#2563eb', linewidth=3,
+                            marker='o', markersize=8, markeredgecolor='white', markeredgewidth=2, zorder=3)
+                    
+                    for x, y in zip(x_pos, df_ano_sim['indice_jaccard']):
+                        ax2.text(x, y, f"{y:.0f}%", ha='center', va='bottom',
+                                fontsize=9, fontweight='bold', color='#2563eb')
+                    
+                    ax2.set_ylabel('Similaridade Mediana (%)', fontsize=10, color='#2563eb')
+                    ax2.tick_params(axis='y', labelcolor='#2563eb', labelsize=9)
+                    
+                    ax1.set_xticks(x_pos)
+                    ax1.set_xticklabels(df_ano_total['ano'].astype(int), fontsize=10)
+                    ax1.set_xlabel('')
+                    ax1.spines['top'].set_visible(False)
+                    ax2.spines['top'].set_visible(False)
+                    ax1.grid(axis='x', linestyle='--', alpha=0.3)
+                    
                     plt.tight_layout()
                     st.pyplot(fig)
                     plt.close()
                 else:
-                    st.info("Dados insuficientes para análise temporal por tamanho")
-        
-        with col2:
-            st.markdown("<h3 style='text-align: center;'>Evolução por Região</h3>", unsafe_allow_html=True)
-            
-            # Usar df_regiao que já foi carregado sem filtro de UF
-            df_tempo_regiao = df_regiao.copy() if need_region_data else df_tempo.copy()
-            
-            # Criar coluna 'ano' se necessário
-            if 'ano_cadastro' in df_tempo_regiao.columns:
-                df_tempo_regiao = df_tempo_regiao[df_tempo_regiao['ano_cadastro'].notna()].copy()
-                df_tempo_regiao['ano'] = df_tempo_regiao['ano_cadastro'].astype(int)
-                df_tempo_regiao = df_tempo_regiao[(df_tempo_regiao['ano'] >= ANO_MIN) & (df_tempo_regiao['ano'] <= ANO_MAX)]
-            
-            if 'regiao' in df_tempo_regiao.columns and 'ano' in df_tempo_regiao.columns and len(df_tempo_regiao) > 0:
-                fig, ax = plt.subplots(figsize=(7, 4.5))
-                linhas_plotadas = False
-                
-                for regiao_key in ["centro_oeste", "nordeste", "norte", "sudeste", "sul"]:
-                    df_reg = df_tempo_regiao[df_tempo_regiao['regiao'] == regiao_key]
-                    if len(df_reg) > 0 and 'ano' in df_reg.columns:
-                        sim_por_ano = df_reg.groupby('ano')['indice_jaccard'].median().reset_index()
-                        sim_por_ano['indice_jaccard'] = sim_por_ano['indice_jaccard'] * 100  # Converter para percentual
-                        if len(sim_por_ano) > 1:
-                            regiao_label = REGIOES_NOME_MAP.get(regiao_key, regiao_key.title())
-                            ax.plot(sim_por_ano['ano'].astype(int), sim_por_ano['indice_jaccard'],
-                                   color=CORES_EVOLUCAO_REGIAO.get(regiao_key, '#333'),
-                                   linewidth=2.5, label=regiao_label, marker='o', markersize=6)
-                            linhas_plotadas = True
-                
-                if linhas_plotadas:
-                    ax.set_xlabel('Ano', fontsize=10, color='grey')
-                    ax.set_ylabel('Similaridade Mediana (%)', fontsize=10)
-                    ax.legend(loc='best', frameon=False, fontsize=9)
-                    ax.grid(axis='both', linestyle='--', alpha=0.3)
-                    ax.spines['top'].set_visible(False)
-                    ax.spines['right'].set_visible(False)
-                    plt.tight_layout()
-                    st.pyplot(fig)
-                    plt.close()
-                else:
-                    st.info("Dados insuficientes para análise temporal por região")
+                    st.info("ℹ️ Dados insuficientes para gráfico temporal (necessário pelo menos 2 anos com dados).")
             else:
-                st.info("Dados de ano de cadastro não disponíveis para análise temporal.")
+                st.info("ℹ️ Nenhum dado temporal disponível após filtros.")
+            
+            st.markdown("---")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("<h3 style='text-align: center;'>Evolução por Tamanho</h3>", unsafe_allow_html=True)
+                if len(df_tempo) > 0 and 'class_tam_imovel' in df_tempo.columns and 'ano' in df_tempo.columns:
+                    fig, ax = plt.subplots(figsize=(7, 4.5))
+                    linhas_plotadas = False
+                    
+                    for tamanho in ["Pequeno", "Médio", "Grande"]:
+                        df_tam = df_tempo[df_tempo['class_tam_imovel'] == tamanho]
+                        if len(df_tam) > 0:
+                            sim_por_ano = df_tam.groupby('ano')['indice_jaccard'].median().reset_index()
+                            sim_por_ano['indice_jaccard'] = sim_por_ano['indice_jaccard'] * 100  # Converter para percentual
+                            if len(sim_por_ano) > 1:
+                                ax.plot(sim_por_ano['ano'].astype(int), sim_por_ano['indice_jaccard'],
+                                       color=CORES_EVOLUCAO_TAMANHO.get(tamanho, '#333'),
+                                       linewidth=2.5, label=tamanho, marker='o', markersize=6)
+                                linhas_plotadas = True
+                    
+                    if linhas_plotadas:
+                        ax.set_xlabel('Ano', fontsize=10, color='grey')
+                        ax.set_ylabel('Similaridade Mediana (%)', fontsize=10)
+                        ax.legend(loc='best', frameon=False, fontsize=9)
+                        ax.grid(axis='both', linestyle='--', alpha=0.3)
+                        ax.spines['top'].set_visible(False)
+                        ax.spines['right'].set_visible(False)
+                        plt.tight_layout()
+                        st.pyplot(fig)
+                        plt.close()
+                    else:
+                        st.info("Dados insuficientes para análise temporal por tamanho")
+                else:
+                    st.info("ℹ️ Dados de tamanho não disponíveis para análise temporal.")
+        
+            with col2:
+                st.markdown("<h3 style='text-align: center;'>Evolução por Região</h3>", unsafe_allow_html=True)
+                
+                # Usar df_regiao que já foi carregado sem filtro de UF
+                try:
+                    df_tempo_regiao = df_regiao.copy() if need_region_data else df_tempo.copy()
+                except Exception as e:
+                    st.warning(f"⚠️ Erro ao preparar dados regionais: {str(e)}")
+                    df_tempo_regiao = pd.DataFrame()
+                
+                # Criar coluna 'ano' se necessário
+                if 'ano_cadastro' in df_tempo_regiao.columns:
+                    df_tempo_regiao = df_tempo_regiao[df_tempo_regiao['ano_cadastro'].notna()].copy()
+                    df_tempo_regiao['ano'] = df_tempo_regiao['ano_cadastro'].astype(int)
+                    df_tempo_regiao = df_tempo_regiao[(df_tempo_regiao['ano'] >= ANO_MIN) & (df_tempo_regiao['ano'] <= ANO_MAX)]
+                
+                if 'regiao' in df_tempo_regiao.columns and 'ano' in df_tempo_regiao.columns and len(df_tempo_regiao) > 0:
+                    fig, ax = plt.subplots(figsize=(7, 4.5))
+                    linhas_plotadas = False
+                    
+                    for regiao_key in ["centro_oeste", "nordeste", "norte", "sudeste", "sul"]:
+                        df_reg = df_tempo_regiao[df_tempo_regiao['regiao'] == regiao_key]
+                        if len(df_reg) > 0 and 'ano' in df_reg.columns:
+                            sim_por_ano = df_reg.groupby('ano')['indice_jaccard'].median().reset_index()
+                            sim_por_ano['indice_jaccard'] = sim_por_ano['indice_jaccard'] * 100  # Converter para percentual
+                            if len(sim_por_ano) > 1:
+                                regiao_label = REGIOES_NOME_MAP.get(regiao_key, regiao_key.title())
+                                ax.plot(sim_por_ano['ano'].astype(int), sim_por_ano['indice_jaccard'],
+                                       color=CORES_EVOLUCAO_REGIAO.get(regiao_key, '#333'),
+                                       linewidth=2.5, label=regiao_label, marker='o', markersize=6)
+                                linhas_plotadas = True
+                    
+                    if linhas_plotadas:
+                        ax.set_xlabel('Ano', fontsize=10, color='grey')
+                        ax.set_ylabel('Similaridade Mediana (%)', fontsize=10)
+                        ax.legend(loc='best', frameon=False, fontsize=9)
+                        ax.grid(axis='both', linestyle='--', alpha=0.3)
+                        ax.spines['top'].set_visible(False)
+                        ax.spines['right'].set_visible(False)
+                        plt.tight_layout()
+                        st.pyplot(fig)
+                        plt.close()
+                    else:
+                        st.info("Dados insuficientes para análise temporal por região")
+                else:
+                    st.info("Dados de ano de cadastro não disponíveis para análise temporal.")
 
 st.markdown("---")
 
@@ -753,71 +819,243 @@ with st.expander("Diagnóstico de Similaridade Espacial", expanded=True):
         with col2:
             st.markdown("<h3 style='text-align: center;'>Distribuição por Faixa</h3>", unsafe_allow_html=True)
             
-            # Garantir ordem correta das faixas na legenda
-            df_plot = df_filtrado.copy()
-            df_plot['faixa_jaccard'] = pd.Categorical(
-                df_plot['faixa_jaccard'], 
-                categories=JACCARD_LABELS, 
-                ordered=True
-            )
-            # Ordenar o DataFrame pela categoria ordenada
-            df_plot = df_plot.sort_values('faixa_jaccard')
+            # Calcular contagens mantendo a ordem das faixas (menor para maior)
+            faixa_counts = df_filtrado['faixa_jaccard'].value_counts()
             
-            zt.donut_plot(df_plot, 'faixa_jaccard', figsize=(7, 4.5),
-                          legend_title='Faixa de Similaridade', decimal_places=1)
-            st.pyplot(plt.gcf())
+            # Reindexar para garantir a ordem correta
+            faixa_counts = faixa_counts.reindex(JACCARD_LABELS, fill_value=0)
+            
+            # Criar gráfico donut manualmente com ordem controlada
+            fig, ax = plt.subplots(figsize=(7, 4.5))
+            
+            # Cores por faixa
+            colors = [CORES_FAIXA_JACCARD.get(faixa, '#999') for faixa in JACCARD_LABELS]
+            
+            # Criar gráfico de pizza/donut
+            wedges, texts, autotexts = ax.pie(
+                faixa_counts.values,
+                labels=None,
+                autopct='%1.1f%%',
+                startangle=90,
+                colors=colors,
+                pctdistance=0.75,
+                wedgeprops=dict(width=0.5, edgecolor='white', linewidth=2)
+            )
+            
+            # Estilizar os percentuais para centralizar melhor
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontsize(11)
+                autotext.set_weight('bold')
+                autotext.set_horizontalalignment('center')
+                autotext.set_verticalalignment('center')
+            
+            # Adicionar texto central com total
+            total = faixa_counts.sum()
+            ax.text(0, 0, f'{format_number(total)}\nTotal', 
+                   ha='center', va='center', fontsize=16, fontweight='bold')
+            
+            # Criar legenda personalizada com ordem correta
+            legend_labels = [
+                f"{faixa} ({format_number(faixa_counts[faixa])} - {faixa_counts[faixa]/total*100:.1f}%)"
+                for faixa in JACCARD_LABELS
+            ]
+            ax.legend(wedges, legend_labels, title="Faixa de Similaridade",
+                     loc="center left", bbox_to_anchor=(1, 0, 0.5, 1),
+                     frameon=False, fontsize=9)
+            
+            plt.tight_layout()
+            st.pyplot(fig)
             plt.close()
 
         st.markdown("---")
 
         st.markdown("<h3 style='text-align: center;'>Análise de Áreas</h3>", unsafe_allow_html=True)
-        filtro_visual = df_filtrado[
-            (df_filtrado['descrepancia'] >= DISCREPANCIA_MIN) & 
-            (df_filtrado['descrepancia'] <= DISCREPANCIA_MAX)
-        ]
-
-        if len(filtro_visual) > 10:
-            fig, ax = plt.subplots(figsize=(14, 5))
-            sns.kdeplot(data=filtro_visual, x='descrepancia', fill=True,
-                        color="#34495e", alpha=0.1, linewidth=2, ax=ax)
-            
-            ymax = ax.get_ylim()[1]
-            ax.axvspan(-10, 10, color='#2ecc71', alpha=0.15, label='Zona de Precisão')
-            ax.text(0, ymax * 0.90, 'ALTA PRECISÃO\n(Conformidade)', ha='center',
-                    color='#27ae60', fontweight='bold')
-            ax.axvline(0, color='#27ae60', linestyle='--', linewidth=2)
-            
-            ax.text(35, ymax * 0.4, 'CAR > SIGEF\n(Superestimado)', ha='center',
-                    color='#e74c3c', fontweight='bold')
-            ax.annotate('', xy=(45, ymax*0.35), xytext=(25, ymax*0.35),
-                        arrowprops=dict(arrowstyle="->", color='#e74c3c', lw=1.5))
-            
-            ax.text(-35, ymax * 0.4, 'CAR < SIGEF\n(Subestimado)', ha='center',
-                    color='#f39c12', fontweight='bold')
-            ax.annotate('', xy=(-45, ymax*0.35), xytext=(-25, ymax*0.35),
-                        arrowprops=dict(arrowstyle="->", color='#f39c12', lw=1.5))
-            
-            sns.despine(left=True, ax=ax)
-            ax.set_yticks([])
-            ax.set_xlabel('Divergência de Área (%)', fontsize=12, labelpad=10)
-            ax.set_ylabel('')
-            
-            plt.tight_layout()
-            st.pyplot(fig)
-            plt.close()
+        
+        # Verificar se coluna descrepancia existe
+        if 'descrepancia' not in df_filtrado.columns:
+            st.info("ℹ️ Dados de discrepância de área não disponíveis.")
         else:
-            st.warning("⚠️ Dados insuficientes para análise de discrepância.")
+            try:
+                # Usar DuckDB para filtrar dados eficientemente
+                query_area = f"""
+                SELECT descrepancia
+                FROM df_filtrado
+                WHERE descrepancia IS NOT NULL
+                  AND descrepancia >= {DISCREPANCIA_MIN}
+                  AND descrepancia <= {DISCREPANCIA_MAX}
+                """
+                filtro_visual = duckdb.query(query_area).df()
+
+                if len(filtro_visual) > 10:
+                    fig, ax = plt.subplots(figsize=(14, 5))
+                    sns.kdeplot(data=filtro_visual, x='descrepancia', fill=True,
+                                color="#34495e", alpha=0.1, linewidth=2, ax=ax)
+                    
+                    ymax = ax.get_ylim()[1]
+                    ax.axvspan(-10, 10, color='#2ecc71', alpha=0.15, label='Zona de Precisão')
+                    ax.text(0, ymax * 0.90, 'ALTA PRECISÃO\n(Conformidade)', ha='center',
+                            color='#27ae60', fontweight='bold')
+                    ax.axvline(0, color='#27ae60', linestyle='--', linewidth=2)
+                    
+                    ax.text(35, ymax * 0.4, 'CAR > SIGEF\n(Superestimado)', ha='center',
+                            color='#e74c3c', fontweight='bold')
+                    ax.annotate('', xy=(45, ymax*0.35), xytext=(25, ymax*0.35),
+                                arrowprops=dict(arrowstyle="->", color='#e74c3c', lw=1.5))
+                    
+                    ax.text(-35, ymax * 0.4, 'CAR < SIGEF\n(Subestimado)', ha='center',
+                            color='#f39c12', fontweight='bold')
+                    ax.annotate('', xy=(-45, ymax*0.35), xytext=(-25, ymax*0.35),
+                                arrowprops=dict(arrowstyle="->", color='#f39c12', lw=1.5))
+                    
+                    sns.despine(left=True, ax=ax)
+                    ax.set_yticks([])
+                    ax.set_xlabel('Divergência de Área (%)', fontsize=12, labelpad=10)
+                    ax.set_ylabel('')
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig)
+                    plt.close()
+                else:
+                    st.warning("⚠️ Dados insuficientes para análise de discrepância.")
+            except Exception as e:
+                st.error(f"❌ Erro ao gerar análise de áreas: {str(e)}")
+                plt.close()
 
 st.markdown("---")
+
 # ═══════════════════════════════════════════════════════════
-# 5. MATRIZ DE CONFIABILIDADE
+# 5. MATRIZ DE CONFIABILIDADE (MOSAIC PLOT)
+# ═══════════════════════════════════════════════════════════
+# Visualização estratégica mostrando a relação entre similaridade
+# espacial e titularidade através de um gráfico de mosaico.
+# Identifica 4 quadrantes de risco/confiabilidade.
 # ═══════════════════════════════════════════════════════════
 
 with st.expander("Matriz de Confiabilidade: Espaço vs. Titularidade", expanded=True):
     if not validate_data(df_filtrado, "Matriz de Confiabilidade", min_records=CONFIG['MIN_RECORDS_FOR_ANALYSIS']):
         pass  # Mensagem já exibida pela função
     else:
-        fig = create_risk_matrix(df_filtrado)
+        try:
+            # Importar mosaic - disponível em statsmodels ou matplotlib 3.3+
+            try:
+                from statsmodels.graphics.mosaicplot import mosaic
+            except ImportError:
+                from matplotlib.pyplot import mosaic
+        except ImportError:
+            st.error("⚠️ Biblioteca necessária não encontrada. Instale: pip install statsmodels")
+            st.stop()
+        
+        # Preparar dados para mosaic plot
+        # Criar coluna label_geo baseada no indice_jaccard
+        df_mosaic = df_filtrado[['label_cpf', 'indice_jaccard']].copy()
+        df_mosaic['label_geo'] = df_mosaic['indice_jaccard'].apply(
+            lambda x: '>= 85%' if x >= 0.85 else '< 85%'
+        )
+        
+        data_mosaic = df_mosaic.groupby(['label_cpf', 'label_geo']).size()
+        
+        # Definir cores por categoria
+        colors = {
+            ('Igual', '>= 85%'):     '#2ecc71',  # Verde
+            ('Igual', '< 85%'):      '#f39c12',  # Laranja
+            ('Diferente', '>= 85%'): '#f1c40f',  # Amarelo
+            ('Diferente', '< 85%'):  '#e74c3c'   # Vermelho
+        }
+        
+        # Labels de ação para cada categoria
+        action_labels = {
+            ('Igual', '>= 85%'):     'MATURIDADE ALTA\n(Monitorar)',
+            ('Igual', '< 85%'):      'ERRO TÉCNICO\n(Retificar)',
+            ('Diferente', '>= 85%'): 'RISCO JURÍDICO\n(Auditar)',
+            ('Diferente', '< 85%'):  'CRÍTICO/BAIXA PRIOR.\n(Reestruturar)'
+        }
+        
+        def props(key):
+            return {'color': colors.get(key, '#999999'), 'linewidth': 2}
+        
+        total = data_mosaic.sum()
+        
+        def labelizer(key):
+            count = data_mosaic.get(key, 0)
+            perc = (count / total) * 100
+            
+            # Formatação do número
+            if count > 1000000:
+                count_str = f'{count/1000000:.1f}M'
+            elif count > 1000:
+                count_str = f'{count/1000:.0f}K'
+            else:
+                count_str = f'{count:.0f}'
+            
+            # Busca a frase de ação
+            acao = action_labels.get(key, '')
+            
+            return f"{acao}\n\n{count_str}\n({perc:.1f}%)"
+        
+        # Criar figura
+        fig, ax = plt.subplots(figsize=(12, 10))
+        
+        mosaic(data_mosaic, gap=0.015, properties=props, labelizer=labelizer, 
+               ax=ax, title='', horizontal=True)
+        
+        # Estilização dos labels internos
+        for text in ax.texts:
+            text.set_color('white')
+            text.set_fontsize(10.5)
+            text.set_fontweight('bold')
+            text.set_horizontalalignment('center')
+        
+        # Ajustes de eixos
+        ax.xaxis.set_label_position('top')
+        ax.xaxis.tick_top()
+        ax.set_xlabel('Titularidade (CPF/CNPJ)', fontsize=13, fontweight='bold', 
+                      labelpad=15, color='#333333')
+        ax.set_ylabel('Similaridade Espacial', fontsize=13, fontweight='bold', 
+                      labelpad=15, color='#333333')
+        
+        # Adicionar totais por coluna (CPF)
+        totais_cpf = df_mosaic.groupby('label_cpf').size()
+        col_order = ['Diferente', 'Igual']
+        pos_x = 0
+        
+        for cpf_label in col_order:
+            if cpf_label in totais_cpf:
+                count = totais_cpf[cpf_label]
+                largura = count / total
+                centro_x = pos_x + largura / 2
+                perc = (count / total) * 100
+                count_str = f'{count/1000:.0f}K' if count > 1000 else f'{count:.0f}'
+                
+                ax.text(centro_x, -0.06, f'{count_str}\n({perc:.1f}%)', 
+                        ha='center', va='top', fontsize=11, fontweight='bold', 
+                        color='#555555', transform=ax.transAxes)
+                pos_x += largura + 0.015
+        
+        # Adicionar totais por linha (Geo)
+        totais_geo = df_mosaic.groupby('label_geo').size()
+        row_order = ['< 85%', '>= 85%']
+        pos_y = 0
+        
+        for geo_label in row_order:
+            if geo_label in totais_geo:
+                count = totais_geo[geo_label]
+                altura = count / total
+                centro_y = pos_y + altura / 2
+                perc = (count / total) * 100
+                count_str = f'{count/1000:.0f}K' if count > 1000 else f'{count:.0f}'
+                
+                ax.text(1.02, centro_y, f'{count_str}\n({perc:.1f}%)', 
+                        ha='left', va='center', fontsize=11, fontweight='bold', 
+                        color='#555555', transform=ax.transAxes)
+                pos_y += altura + 0.015
+        
+        # Limpeza visual
+        sns.despine(left=True, bottom=True, top=True, right=True)
+        ax.tick_params(axis='both', which='both', length=0)
+        
+        plt.subplots_adjust(top=0.85, bottom=0.1, right=0.9, left=0.05)
+        
         st.pyplot(fig)
         plt.close()
 

@@ -44,6 +44,8 @@ env/
 .ipynb_checkpoints
 *.ipynb_checkpoints/
 .jupyter/
+# Notebooks de desenvolvimento (manter apenas em local)
+eda_similaridade_car_sigef.ipynb
 
 # ═══════════════════════════════════════════════════════════
 # Environment Variables
@@ -55,9 +57,11 @@ env/
 # ═══════════════════════════════════════════════════════════
 # Data Files (CSVs grandes - manter versionamento conforme necessidade)
 # ═══════════════════════════════════════════════════════════
-# Descomente a linha abaixo se não quiser versionar os CSVs
-# data/*.csv
-# !data/.gitkeep
+# Ignorar CSVs originais (usamos o ZIP compactado)
+data/*.csv
+# Manter o arquivo .gitkeep e arquivos compactados
+!data/.gitkeep
+!data/*.zip
 
 # ═══════════════════════════════════════════════════════════
 # Streamlit
@@ -88,3 +92,4 @@ desktop.ini
 *.temp
 *.bak
 *.backup
+test_unzip.py

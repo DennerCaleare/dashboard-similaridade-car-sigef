@@ -94,6 +94,7 @@ dashboard-similaridade-car-sigef/
 ├── requirements.txt                    # Dependências (desenvolvimento local)
 ├── requirements_cloud.txt              # Dependências (Streamlit Cloud)
 ├── README.md                           # Este arquivo
+├── DEPLOY.md                           # Guia de deploy (NOVO!) 🚀
 ├── LICENSE                             # MIT License
 ├── .gitignore                          # Arquivos ignorados pelo Git
 ├── .streamlit/
@@ -101,14 +102,18 @@ dashboard-similaridade-car-sigef/
 ├── assets/
 │   └── LogoZetta.png                   # Logo da Agência Zetta
 ├── data/
-│   └── similaridade_sicar_sigef_brasil.csv  # Dataset principal
+│   ├── .gitkeep                        # Mantém pasta no Git
+│   ├── similaridade_sicar_sigef_brasil.csv  # Dataset (gerado do ZIP)
+│   └── similaridade_sicar_sigef_brasil.zip  # Dataset compactado (80MB) ✅
 └── src/
     ├── __init__.py
     ├── config/
     │   └── __init__.py                 # Constantes e configurações
     └── utils/
-        └── __init__.py                 # Funções utilitárias
+        └── __init__.py                 # Funções utilitárias + loader otimizado
 ```
+
+**📦 Nota sobre dados:** O arquivo CSV (271 MB) é armazenado como ZIP (80 MB) no repositório. O app descompacta automaticamente na primeira execução!
 
 ## 🚀 Como Usar
 
@@ -132,13 +137,19 @@ streamlit run app.py
 ```
 
 ### Deploy no Streamlit Cloud
-1. Faça fork deste repositório
+> 📖 **Veja o guia completo de deploy em [DEPLOY.md](DEPLOY.md)**
+
+**Resumo rápido:**
+1. Faça commit do arquivo `data/similaridade_sicar_sigef_brasil.zip` (80 MB)
 2. Acesse [share.streamlit.io](https://share.streamlit.io)
-3. Conecte sua conta do GitHub
-4. Selecione o repositório e branch
-5. Configure o arquivo principal como `app.py`
-6. Use `requirements_cloud.txt` como arquivo de dependências
-7. Deploy! 🚀
+3. Conecte ao GitHub e selecione o repositório
+4. Configure:
+   - Branch: `main`
+   - Main file: `app.py`
+   - Python version: 3.11+
+5. Deploy! 🚀
+
+O app vai descompactar automaticamente o ZIP na primeira execução.
 
 ### Requisitos
 - Python 3.11 ou superior

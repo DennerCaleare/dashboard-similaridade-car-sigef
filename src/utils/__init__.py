@@ -25,9 +25,17 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple, Any
+import os
+import urllib.request
+import zipfile
 
 # Caminho para o arquivo de dados
 DATA_PATH = Path(__file__).parent.parent.parent / "data" / "similaridade_sicar_sigef_brasil.csv"
+DATA_ZIP_PATH = Path(__file__).parent.parent.parent / "data" / "similaridade_sicar_sigef_brasil.zip"
+
+# URL alternativa para download dos dados (caso não esteja no repositório)
+# Configure esta variável de ambiente no Streamlit Cloud com a URL do seu arquivo
+DATA_URL = os.getenv("DATA_URL", None)
 
 # Conexão global com DuckDB (in-memory)
 _conn = None
@@ -95,13 +103,84 @@ def reset_connection():
         _conn = None
 
 
+def _ensure_data_available() -> bool:
+    """Garante que os dados estão disponíveis, fazendo download/descompactação se necessário.
+    
+    Returns:
+        True se os dados estão disponíveis, False caso contrário
+    """
+    # Se o arquivo CSV já existe localmente, está tudo ok
+    if DATA_PATH.exists():
+        return True
+    
+    # Verificar se existe arquivo ZIP para descompactar
+    if DATA_ZIP_PATH.exists():
+        try:
+            st.info(f"📦 Descompactando arquivo de dados... (apenas na primeira vez)")
+            
+            # Criar diretório se não existir
+            DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Descompactar arquivo
+            with zipfile.ZipFile(DATA_ZIP_PATH, 'r') as zip_ref:
+                zip_ref.extractall(DATA_PATH.parent)
+            
+            if DATA_PATH.exists():
+                st.success(f"✅ Arquivo descompactado com sucesso!")
+                return True
+            else:
+                st.error(f"❌ Erro: Arquivo descompactado não encontrado após extração.")
+                return False
+                
+        except Exception as e:
+            st.error(f"❌ Erro ao descompactar arquivo: {str(e)}")
+            return False
+    
+    # Se não existe localmente nem compactado, tentar baixar da URL configurada
+    if DATA_URL:
+        try:
+            st.info(f"📥 Baixando arquivo de dados... (isso pode levar alguns minutos)")
+            
+            # Criar diretório se não existir
+            DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Baixar arquivo com barra de progresso
+            def download_progress(block_num, block_size, total_size):
+                downloaded = block_num * block_size
+                percent = min(downloaded / total_size * 100, 100)
+                if block_num % 100 == 0:  # Atualizar a cada ~100 blocos
+                    st.write(f"📊 Progresso: {percent:.1f}%")
+            
+            urllib.request.urlretrieve(DATA_URL, DATA_PATH, reporthook=download_progress)
+            st.success(f"✅ Arquivo baixado com sucesso!")
+            return True
+            
+        except Exception as e:
+            st.error(f"❌ Erro ao baixar arquivo de dados: {str(e)}")
+            return False
+    
+    # Se chegou aqui, não tem arquivo local, nem ZIP, nem URL configurada
+    st.error(f"❌ Arquivo de dados não encontrado:")
+    st.error(f"   • CSV: {DATA_PATH}")
+    st.error(f"   • ZIP: {DATA_ZIP_PATH}")
+    st.error(f"💡 Soluções:")
+    st.error(f"   1. Adicione o arquivo ZIP ao repositório (similaridade_sicar_sigef_brasil.zip)")
+    st.error(f"   2. Configure a variável de ambiente DATA_URL com o link do arquivo CSV")
+    return False
+
+
 def _get_connection():
     """Obtém conexão DuckDB (singleton)."""
     global _conn
     if _conn is None:
+        # Garantir que os dados estão disponíveis
+        if not _ensure_data_available():
+            raise FileNotFoundError(f"Dados não disponíveis e não foi possível fazer download.")
+        
         _conn = duckdb.connect(':memory:')
-        # Carregar dados CSV para memória (primeira vez apenas)
-        if DATA_PATH.exists():
+        
+        # Carregar dados CSV para memória
+        try:
             _conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS similaridade AS 
                 SELECT 
@@ -128,6 +207,10 @@ def _get_connection():
                     ((area_sicar_ha - area_sigef_agregado_ha) / NULLIF(area_sigef_agregado_ha, 0)) * 100 as descrepancia
                 FROM read_csv_auto('{str(DATA_PATH)}')
             """)
+        except Exception as e:
+            st.error(f"❌ Erro ao carregar CSV no DuckDB: {str(e)}")
+            raise
+            
     return _conn
 
 
@@ -178,44 +261,42 @@ def load_filtered_data(
         conn = _get_connection()
         
         # Construir condições de forma mais segura
-        conditions = ["1=1"]
+        conditions = []
         
+        # Tratar filtros None, vazios ou com strings vazias
         if regioes and len(regioes) > 0:
-            # Sanitizar inputs para evitar SQL injection
-            safe_regioes = [r.replace("'", "''") for r in regioes if r]
+            # Filtrar valores None e strings vazias
+            safe_regioes = [r.replace("'", "''").strip() for r in regioes if r and str(r).strip()]
             if safe_regioes:
                 regioes_str = "', '".join(safe_regioes)
                 conditions.append(f"regiao IN ('{regioes_str}')")
         
         if ufs and len(ufs) > 0:
-            safe_ufs = [u.replace("'", "''") for u in ufs if u]
+            safe_ufs = [u.replace("'", "''").strip() for u in ufs if u and str(u).strip()]
             if safe_ufs:
                 ufs_str = "', '".join(safe_ufs)
                 conditions.append(f"estado IN ('{ufs_str}')")
         
         if tamanhos and len(tamanhos) > 0:
-            safe_tamanhos = [t.replace("'", "''") for t in tamanhos if t]
+            safe_tamanhos = [t.replace("'", "''").strip() for t in tamanhos if t and str(t).strip()]
             if safe_tamanhos:
                 tamanhos_str = "', '".join(safe_tamanhos)
                 conditions.append(f"class_tam_imovel IN ('{tamanhos_str}')")
         
         if status and len(status) > 0:
-            safe_status = [s.replace("'", "''") for s in status if s]
+            safe_status = [s.replace("'", "''").strip() for s in status if s and str(s).strip()]
             if safe_status:
                 status_str = "', '".join(safe_status)
                 conditions.append(f"status_imovel IN ('{status_str}')")
         
         # Montar query final
-        where_clause = " AND ".join(conditions)
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
         query = f"SELECT * FROM similaridade WHERE {where_clause}"
         
-        # Executar com limite de segurança para evitar crashes
+        # Executar query
         df = conn.execute(query).fetchdf()
         
-        # Validar resultado
-        if df.empty:
-            st.warning("⚠️ Nenhum registro encontrado com os filtros selecionados.")
-        
+        # Retornar DataFrame (vazio ou com dados)
         return df
         
     except Exception as e:
@@ -260,26 +341,34 @@ def get_aggregated_stats(
     try:
         conn = _get_connection()
         
-        # Construir WHERE clause
-        where_clauses = ["1=1"]
+        # Construir WHERE clause com sanitização
+        where_clauses = []
         
         if regioes and len(regioes) > 0:
-            regioes_str = "', '".join(regioes)
-            where_clauses.append(f"regiao IN ('{regioes_str}')")
+            safe_regioes = [r.replace("'", "''").strip() for r in regioes if r and str(r).strip()]
+            if safe_regioes:
+                regioes_str = "', '".join(safe_regioes)
+                where_clauses.append(f"regiao IN ('{regioes_str}')")
         
         if ufs and len(ufs) > 0:
-            ufs_str = "', '".join(ufs)
-            where_clauses.append(f"estado IN ('{ufs_str}')")
+            safe_ufs = [u.replace("'", "''").strip() for u in ufs if u and str(u).strip()]
+            if safe_ufs:
+                ufs_str = "', '".join(safe_ufs)
+                where_clauses.append(f"estado IN ('{ufs_str}')")
         
         if tamanhos and len(tamanhos) > 0:
-            tamanhos_str = "', '".join(tamanhos)
-            where_clauses.append(f"class_tam_imovel IN ('{tamanhos_str}')")
+            safe_tamanhos = [t.replace("'", "''").strip() for t in tamanhos if t and str(t).strip()]
+            if safe_tamanhos:
+                tamanhos_str = "', '".join(safe_tamanhos)
+                where_clauses.append(f"class_tam_imovel IN ('{tamanhos_str}')")
         
         if status and len(status) > 0:
-            status_str = "', '".join(status)
-            where_clauses.append(f"status_imovel IN ('{status_str}')")
+            safe_status = [s.replace("'", "''").strip() for s in status if s and str(s).strip()]
+            if safe_status:
+                status_str = "', '".join(safe_status)
+                where_clauses.append(f"status_imovel IN ('{status_str}')")
         
-        where_clause = " AND ".join(where_clauses)
+        where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
         
         query = f"""
             SELECT 
@@ -554,31 +643,29 @@ def create_risk_matrix(df: pd.DataFrame) -> plt.Figure:
     import seaborn as sns
     from matplotlib.colors import LinearSegmentedColormap
     
-    # Preparar dados
-    df_plot = df.copy()
+    # Preparar dados (sem cópia - usar apenas colunas necessárias)
+    mask = df['indice_jaccard'].notna() & df['label_cpf'].notna()
+    df_valido = df[mask]
     
     # Agrupar por bins de Jaccard (escala 0-1)
-    df_plot['jaccard_bin'] = pd.cut(
-        df_plot['indice_jaccard'],
+    jaccard_bin = pd.cut(
+        df_valido['indice_jaccard'],
         bins=[0, 0.2, 0.4, 0.6, 0.8, 1.0],
         labels=['0-20%', '20-40%', '40-60%', '60-80%', '80-100%'],
         include_lowest=True
     )
     
-    # Remover NaN
-    df_plot = df_plot[df_plot['jaccard_bin'].notna() & df_plot['label_cpf'].notna()]
-    
     # Criar tabela de contingência (contagens)
     count_table = pd.crosstab(
-        df_plot['label_cpf'], 
-        df_plot['jaccard_bin'],
+        df_valido['label_cpf'], 
+        jaccard_bin,
         margins=False
     )
     
     # Criar tabela percentual (normalizado por coluna)
     pct_table = pd.crosstab(
-        df_plot['label_cpf'], 
-        df_plot['jaccard_bin'],
+        df_valido['label_cpf'], 
+        jaccard_bin,
         normalize='columns',
         margins=False
     ) * 100
@@ -627,8 +714,13 @@ def create_risk_matrix(df: pd.DataFrame) -> plt.Figure:
                    ha='center', va='center', fontsize=16, 
                    fontweight='bold', color=text_color)
             
-            # Texto secundário (contagem)
-            ax.text(j + 0.5, i + 0.65, f'({int(count/1000)}K)',
+            # Texto secundário (contagem formatada)
+            if count >= 1000:
+                count_text = f'({count/1000:.0f}K)'
+            else:
+                count_text = f'({int(count)})'
+            
+            ax.text(j + 0.5, i + 0.65, count_text,
                    ha='center', va='center', fontsize=10, 
                    color=text_color, alpha=0.8)
     
@@ -637,8 +729,13 @@ def create_risk_matrix(df: pd.DataFrame) -> plt.Figure:
     pct_totals = (totals / totals.sum()) * 100
     
     for j, (total, pct) in enumerate(zip(totals, pct_totals)):
+        if total >= 1000:
+            total_text = f'{total/1000:.0f}K'
+        else:
+            total_text = f'{int(total)}'
+            
         ax.text(j + 0.5, len(row_order) + 0.3, 
-               f'{int(total/1000)}K\n({pct:.1f}%)',
+               f'{total_text}\n({pct:.1f}%)',
                ha='center', va='top', fontsize=9, 
                color='#555', fontweight='bold')
     
@@ -647,8 +744,13 @@ def create_risk_matrix(df: pd.DataFrame) -> plt.Figure:
     pct_row = (totals_row / totals_row.sum()) * 100
     
     for i, (total, pct) in enumerate(zip(totals_row, pct_row)):
+        if total >= 1000:
+            total_text = f'{total/1000:.0f}K'
+        else:
+            total_text = f'{int(total)}'
+            
         ax.text(len(col_order) + 0.2, i + 0.5,
-               f'{int(total/1000)}K ({pct:.1f}%)',
+               f'{total_text} ({pct:.1f}%)',
                ha='left', va='center', fontsize=10,
                color='#555', fontweight='bold')
     
