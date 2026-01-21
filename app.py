@@ -159,17 +159,29 @@ if 'db_initialized' not in st.session_state:
 
 if not st.session_state.db_initialized:
     try:
-        with st.spinner('🚀 Inicializando banco de dados... (apenas na primeira vez)'):
+        with st.spinner('🚀 Inicializando banco de dados... (pode levar alguns segundos na primeira vez)'):
             from src.utils import load_metadata
-            # Isso força a criação da tabela em memória
+            # Isso força a criação da tabela em memória (descompacta ZIP se necessário)
             metadata_test = load_metadata()
             if metadata_test is None or len(metadata_test) == 0:
                 st.error("❌ Erro: Não foi possível carregar os metadados do banco de dados.")
+                st.info("💡 Verifique os logs do servidor para mais detalhes.")
                 st.stop()
             st.session_state.db_initialized = True
+            st.success("✅ Banco de dados inicializado com sucesso!")
+    except FileNotFoundError as e:
+        st.error(f"❌ Arquivo de dados não encontrado!")
+        st.error(f"Detalhes: {str(e)}")
+        st.info("💡 Certifique-se de que o arquivo ZIP está no repositório: data/similaridade_sicar_sigef_brasil.zip")
+        st.stop()
     except Exception as e:
-        st.error(f"❌ Erro ao inicializar banco de dados: {str(e)}")
-        st.info("💡 Verifique se o arquivo de dados existe no caminho correto.")
+        st.error(f"❌ Erro ao inicializar banco de dados")
+        st.error(f"Tipo: {type(e).__name__}")
+        st.error(f"Mensagem: {str(e)}")
+        import traceback
+        with st.expander("🔍 Ver traceback completo"):
+            st.code(traceback.format_exc())
+        st.info("💡 Verifique os logs do Streamlit Cloud para mais detalhes.")
         st.stop()
 
 # ═══════════════════════════════════════════════════════════

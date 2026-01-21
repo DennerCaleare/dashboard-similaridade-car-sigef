@@ -10,9 +10,12 @@ headless = true
 port = 8501
 enableCORS = false
 enableXsrfProtection = true
+maxUploadSize = 1000
+maxMessageSize = 1000
 
 [browser]
 gatherUsageStats = false
+serverAddress = "0.0.0.0"
 
 [runner]
 magicEnabled = true

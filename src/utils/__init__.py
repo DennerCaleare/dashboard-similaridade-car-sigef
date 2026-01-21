@@ -116,7 +116,7 @@ def _ensure_data_available() -> bool:
     # Verificar se existe arquivo ZIP para descompactar
     if DATA_ZIP_PATH.exists():
         try:
-            st.info(f"📦 Descompactando arquivo de dados... (apenas na primeira vez)")
+            print(f"📦 Descompactando arquivo de dados... (apenas na primeira vez)")
             
             # Criar diretório se não existir
             DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -126,46 +126,44 @@ def _ensure_data_available() -> bool:
                 zip_ref.extractall(DATA_PATH.parent)
             
             if DATA_PATH.exists():
-                st.success(f"✅ Arquivo descompactado com sucesso!")
+                print(f"✅ Arquivo descompactado com sucesso!")
                 return True
             else:
-                st.error(f"❌ Erro: Arquivo descompactado não encontrado após extração.")
+                print(f"❌ Erro: Arquivo descompactado não encontrado após extração.")
                 return False
                 
         except Exception as e:
-            st.error(f"❌ Erro ao descompactar arquivo: {str(e)}")
+            print(f"❌ Erro ao descompactar arquivo: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return False
     
     # Se não existe localmente nem compactado, tentar baixar da URL configurada
     if DATA_URL:
         try:
-            st.info(f"📥 Baixando arquivo de dados... (isso pode levar alguns minutos)")
+            print(f"📥 Baixando arquivo de dados... (isso pode levar alguns minutos)")
             
             # Criar diretório se não existir
             DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
             
-            # Baixar arquivo com barra de progresso
-            def download_progress(block_num, block_size, total_size):
-                downloaded = block_num * block_size
-                percent = min(downloaded / total_size * 100, 100)
-                if block_num % 100 == 0:  # Atualizar a cada ~100 blocos
-                    st.write(f"📊 Progresso: {percent:.1f}%")
-            
-            urllib.request.urlretrieve(DATA_URL, DATA_PATH, reporthook=download_progress)
-            st.success(f"✅ Arquivo baixado com sucesso!")
+            # Baixar arquivo
+            urllib.request.urlretrieve(DATA_URL, DATA_PATH)
+            print(f"✅ Arquivo baixado com sucesso!")
             return True
             
         except Exception as e:
-            st.error(f"❌ Erro ao baixar arquivo de dados: {str(e)}")
+            print(f"❌ Erro ao baixar arquivo de dados: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return False
     
     # Se chegou aqui, não tem arquivo local, nem ZIP, nem URL configurada
-    st.error(f"❌ Arquivo de dados não encontrado:")
-    st.error(f"   • CSV: {DATA_PATH}")
-    st.error(f"   • ZIP: {DATA_ZIP_PATH}")
-    st.error(f"💡 Soluções:")
-    st.error(f"   1. Adicione o arquivo ZIP ao repositório (similaridade_sicar_sigef_brasil.zip)")
-    st.error(f"   2. Configure a variável de ambiente DATA_URL com o link do arquivo CSV")
+    print(f"❌ Arquivo de dados não encontrado:")
+    print(f"   • CSV: {DATA_PATH}")
+    print(f"   • ZIP: {DATA_ZIP_PATH}")
+    print(f"💡 Soluções:")
+    print(f"   1. Adicione o arquivo ZIP ao repositório (similaridade_sicar_sigef_brasil.zip)")
+    print(f"   2. Configure a variável de ambiente DATA_URL com o link do arquivo CSV")
     return False
 
 
@@ -207,8 +205,11 @@ def _get_connection():
                     ((area_sicar_ha - area_sigef_agregado_ha) / NULLIF(area_sigef_agregado_ha, 0)) * 100 as descrepancia
                 FROM read_csv_auto('{str(DATA_PATH)}')
             """)
+            print(f"✅ Tabela DuckDB criada com sucesso!")
         except Exception as e:
-            st.error(f"❌ Erro ao carregar CSV no DuckDB: {str(e)}")
+            print(f"❌ Erro ao carregar CSV no DuckDB: {str(e)}")
+            import traceback
+            traceback.print_exc()
             raise
             
     return _conn
