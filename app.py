@@ -946,9 +946,8 @@ with st.expander("Evolução Temporal", expanded=True):
                     plt.close()
                 except Exception as e:
                     st.warning(f"⚠️ Dados insuficientes para análise por região")
-                
-            else:
-                    st.info("Dados de ano de cadastro não disponíveis para análise temporal.")
+        else:
+            st.info("Dados de ano de cadastro não disponíveis para análise temporal.")
 
 st.markdown("---")
 
