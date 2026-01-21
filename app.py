@@ -946,38 +946,8 @@ with st.expander("Evolução Temporal", expanded=True):
                     plt.close()
                 except Exception as e:
                     st.warning(f"⚠️ Dados insuficientes para análise por região")
-                    df_tempo_regiao['ano'] = df_tempo_regiao['ano_cadastro'].astype(int)
-                    df_tempo_regiao = df_tempo_regiao[(df_tempo_regiao['ano'] >= ANO_MIN) & (df_tempo_regiao['ano'] <= ANO_MAX)]
                 
-                if 'regiao' in df_tempo_regiao.columns and 'ano' in df_tempo_regiao.columns and len(df_tempo_regiao) > 0:
-                    fig, ax = plt.subplots(figsize=(7, 4.5))
-                    linhas_plotadas = False
-                    
-                    for regiao_key in ["centro_oeste", "nordeste", "norte", "sudeste", "sul"]:
-                        df_reg = df_tempo_regiao[df_tempo_regiao['regiao'] == regiao_key]
-                        if len(df_reg) > 0 and 'ano' in df_reg.columns:
-                            sim_por_ano = df_reg.groupby('ano')['indice_jaccard'].median().reset_index()
-                            sim_por_ano['indice_jaccard'] = sim_por_ano['indice_jaccard'] * 100  # Converter para percentual
-                            if len(sim_por_ano) > 1:
-                                regiao_label = REGIOES_NOME_MAP.get(regiao_key, regiao_key.title())
-                                ax.plot(sim_por_ano['ano'].astype(int), sim_por_ano['indice_jaccard'],
-                                       color=CORES_EVOLUCAO_REGIAO.get(regiao_key, '#333'),
-                                       linewidth=2.5, label=regiao_label, marker='o', markersize=6)
-                                linhas_plotadas = True
-                    
-                    if linhas_plotadas:
-                        ax.set_xlabel('Ano', fontsize=10, color='grey')
-                        ax.set_ylabel('Similaridade Mediana (%)', fontsize=10)
-                        ax.legend(loc='best', frameon=False, fontsize=9)
-                        ax.grid(axis='both', linestyle='--', alpha=0.3)
-                        ax.spines['top'].set_visible(False)
-                        ax.spines['right'].set_visible(False)
-                        plt.tight_layout()
-                        st.pyplot(fig)
-                        plt.close()
-                    else:
-                        st.info("Dados insuficientes para análise temporal por região")
-                else:
+            else:
                     st.info("Dados de ano de cadastro não disponíveis para análise temporal.")
 
 st.markdown("---")
