@@ -831,29 +831,17 @@ with st.expander("Evolução Temporal", expanded=True):
     if not validate_data(df_filtrado, "Evolução Temporal", min_records=CONFIG['MIN_RECORDS_FOR_ANALYSIS']):
         pass  # Mensagem já exibida pela função
     else:
-        # Verificar se coluna existe
-        if 'data_cadastro_imovel' not in df_filtrado.columns:
-            st.warning("⚠️ Coluna de data não disponível para análise temporal.")
-        else:
-            df_tempo = df_filtrado[df_filtrado['data_cadastro_imovel'].notna()].copy()
+        # Usar agregação SQL para economizar memória
+        if 'ano_cadastro' in df_filtrado.columns:
+            # Dados já agregados - apenas filtrar
+            df_ano_total = df_filtrado.groupby('ano_cadastro').size().reset_index(name='total')
+            df_ano_sim = df_filtrado.groupby('ano_cadastro')['indice_jaccard'].median().reset_index()
+            df_ano_sim['indice_jaccard'] = df_ano_sim['indice_jaccard'] * 100
+            df_ano_total.columns = ['ano', 'total']
+            df_ano_sim.columns = ['ano', 'indice_jaccard']
             
-            # Converter para datetime com tratamento de erros
-            try:
-                df_tempo['ano'] = pd.to_datetime(df_tempo['data_cadastro_imovel'], errors='coerce').dt.year
-                # Remover anos inválidos (NaN)
-                df_tempo = df_tempo[df_tempo['ano'].notna()]
-                df_tempo['ano'] = df_tempo['ano'].astype(int)
-                df_tempo = df_tempo[(df_tempo['ano'] >= ANO_MIN) & (df_tempo['ano'] <= ANO_MAX)]
-            except Exception as e:
-                st.error(f"❌ Erro ao processar datas: {str(e)}")
-                df_tempo = pd.DataFrame()
-
-            if len(df_tempo) > 0:
+            if len(df_ano_total) > 0:
                 st.markdown("<h3 style='text-align: center;'>Volume de CARs e Similaridade Mediana por Ano</h3>", unsafe_allow_html=True)
-                
-                df_ano_total = df_tempo.groupby('ano').size().reset_index(name='total')
-                df_ano_sim = df_tempo.groupby('ano')['indice_jaccard'].median().reset_index()
-                df_ano_sim['indice_jaccard'] = df_ano_sim['indice_jaccard'] * 100  # Converter para percentual
                 
                 # Validar dados antes de plotar
                 if len(df_ano_total) > 1 and df_ano_total['total'].max() > 0:
@@ -896,58 +884,68 @@ with st.expander("Evolução Temporal", expanded=True):
                     plt.close()
                 else:
                     st.info("ℹ️ Dados insuficientes para gráfico temporal (necessário pelo menos 2 anos com dados).")
-            else:
-                st.info("ℹ️ Nenhum dado temporal disponível após filtros.")
-            
-            st.markdown("---")
-            
+        else:
+            st.warning("⚠️ Coluna de data não disponível para análise temporal.")
+        
+        # Análise por tamanho e região - simplificada
+        st.markdown("---")
+        
+        if 'ano_cadastro' in df_filtrado.columns and 'class_tam_imovel' in df_filtrado.columns:
             col1, col2 = st.columns(2)
             
             with col1:
                 st.markdown("<h3 style='text-align: center;'>Evolução por Tamanho</h3>", unsafe_allow_html=True)
-                if len(df_tempo) > 0 and 'class_tam_imovel' in df_tempo.columns and 'ano' in df_tempo.columns:
+                try:
+                    # Agregar por ano e tamanho
+                    df_tam_ano = df_filtrado.groupby(['ano_cadastro', 'class_tam_imovel'])['indice_jaccard'].median().reset_index()
+                    df_tam_ano['indice_jaccard'] = df_tam_ano['indice_jaccard'] * 100
+                    
                     fig, ax = plt.subplots(figsize=(7, 4.5))
-                    linhas_plotadas = False
-                    
                     for tamanho in ["Pequeno", "Médio", "Grande"]:
-                        df_tam = df_tempo[df_tempo['class_tam_imovel'] == tamanho]
-                        if len(df_tam) > 0:
-                            sim_por_ano = df_tam.groupby('ano')['indice_jaccard'].median().reset_index()
-                            sim_por_ano['indice_jaccard'] = sim_por_ano['indice_jaccard'] * 100  # Converter para percentual
-                            if len(sim_por_ano) > 1:
-                                ax.plot(sim_por_ano['ano'].astype(int), sim_por_ano['indice_jaccard'],
-                                       color=CORES_EVOLUCAO_TAMANHO.get(tamanho, '#333'),
-                                       linewidth=2.5, label=tamanho, marker='o', markersize=6)
-                                linhas_plotadas = True
+                        df_t = df_tam_ano[df_tam_ano['class_tam_imovel'] == tamanho]
+                        if len(df_t) > 1:
+                            ax.plot(df_t['ano_cadastro'].astype(int), df_t['indice_jaccard'],
+                                   color=CORES_EVOLUCAO_TAMANHO.get(tamanho, '#333'),
+                                   linewidth=2.5, label=tamanho, marker='o', markersize=6)
                     
-                    if linhas_plotadas:
-                        ax.set_xlabel('Ano', fontsize=10, color='grey')
-                        ax.set_ylabel('Similaridade Mediana (%)', fontsize=10)
-                        ax.legend(loc='best', frameon=False, fontsize=9)
-                        ax.grid(axis='both', linestyle='--', alpha=0.3)
-                        ax.spines['top'].set_visible(False)
-                        ax.spines['right'].set_visible(False)
-                        plt.tight_layout()
-                        st.pyplot(fig)
-                        plt.close()
-                    else:
-                        st.info("Dados insuficientes para análise temporal por tamanho")
-                else:
-                    st.info("ℹ️ Dados de tamanho não disponíveis para análise temporal.")
-        
+                    ax.set_xlabel('Ano', fontsize=10, color='grey')
+                    ax.set_ylabel('Similaridade Mediana (%)', fontsize=10)
+                    ax.legend(loc='best', frameon=False, fontsize=9)
+                    ax.grid(axis='both', linestyle='--', alpha=0.3)
+                    ax.spines['top'].set_visible(False)
+                    ax.spines['right'].set_visible(False)
+                    plt.tight_layout()
+                    st.pyplot(fig)
+                    plt.close()
+                except Exception as e:
+                    st.warning(f"⚠️ Dados insuficientes para análise por tamanho")
+            
             with col2:
                 st.markdown("<h3 style='text-align: center;'>Evolução por Região</h3>", unsafe_allow_html=True)
-                
-                # Usar df_regiao que já foi carregado sem filtro de UF
                 try:
-                    df_tempo_regiao = df_regiao.copy() if need_region_data else df_tempo.copy()
+                    # Agregar por ano e região
+                    df_reg_ano = df_filtrado.groupby(['ano_cadastro', 'regiao'])['indice_jaccard'].median().reset_index()
+                    df_reg_ano['indice_jaccard'] = df_reg_ano['indice_jaccard'] * 100
+                    
+                    fig, ax = plt.subplots(figsize=(7, 4.5))
+                    for regiao in df_reg_ano['regiao'].unique():
+                        df_r = df_reg_ano[df_reg_ano['regiao'] == regiao]
+                        if len(df_r) > 1:
+                            ax.plot(df_r['ano_cadastro'].astype(int), df_r['indice_jaccard'],
+                                   color=CORES_EVOLUCAO_REGIAO.get(regiao, '#333'),
+                                   linewidth=2.5, label=regiao.title(), marker='o', markersize=6)
+                    
+                    ax.set_xlabel('Ano', fontsize=10, color='grey')
+                    ax.set_ylabel('Similaridade Mediana (%)', fontsize=10)
+                    ax.legend(loc='best', frameon=False, fontsize=9)
+                    ax.grid(axis='both', linestyle='--', alpha=0.3)
+                    ax.spines['top'].set_visible(False)
+                    ax.spines['right'].set_visible(False)
+                    plt.tight_layout()
+                    st.pyplot(fig)
+                    plt.close()
                 except Exception as e:
-                    st.warning(f"⚠️ Erro ao preparar dados regionais: {str(e)}")
-                    df_tempo_regiao = pd.DataFrame()
-                
-                # Criar coluna 'ano' se necessário
-                if 'ano_cadastro' in df_tempo_regiao.columns:
-                    df_tempo_regiao = df_tempo_regiao[df_tempo_regiao['ano_cadastro'].notna()].copy()
+                    st.warning(f"⚠️ Dados insuficientes para análise por região")
                     df_tempo_regiao['ano'] = df_tempo_regiao['ano_cadastro'].astype(int)
                     df_tempo_regiao = df_tempo_regiao[(df_tempo_regiao['ano'] >= ANO_MIN) & (df_tempo_regiao['ano'] <= ANO_MAX)]
                 
