@@ -100,8 +100,8 @@ CORES_STATUS = {
 
 # Cores para titularidade (mesmo titular ou diferente)
 CORES_TITULARIDADE = {
-    "Igual": "#81c784",      # Verde suave
-    "Diferente": "#e57373"   # Vermelho suave
+    "Diferente": "#e57373",  # Vermelho suave (CPF diferente = problema)
+    "Igual": "#81c784"       # Verde suave (CPF igual = bom)
 }
 
 # Cores para evolução temporal por tamanho
