@@ -179,13 +179,38 @@ def create_brazil_choropleth_map(df, metric='jaccard_medio'):
         margin=dict(l=0, r=0, t=30, b=0),
         height=300,
         coloraxis_colorbar=dict(
-            title="Similaridade (%)",
-            titlefont=dict(size=7),
+            title=dict(text="Similaridade (%)", font=dict(size=7)),
             tickfont=dict(size=6),
             len=0.45,
             thickness=10
         )
     )
+    
+    # Adicionar anotações com valores nos estados
+    # Coordenadas aproximadas dos centros dos estados (lon, lat)
+    coords = {
+        'AC': (-70.0, -9.0), 'AL': (-36.5, -9.5), 'AP': (-51.5, 1.0),
+        'AM': (-63.0, -5.0), 'BA': (-41.5, -12.5), 'CE': (-39.5, -5.0),
+        'DF': (-47.8, -15.8), 'ES': (-40.3, -19.5), 'GO': (-49.5, -15.5),
+        'MA': (-45.0, -5.0), 'MT': (-55.5, -12.5), 'MS': (-54.5, -20.5),
+        'MG': (-44.5, -18.5), 'PA': (-52.0, -4.0), 'PB': (-36.7, -7.2),
+        'PR': (-51.5, -24.5), 'PE': (-37.5, -8.3), 'PI': (-43.0, -7.5),
+        'RJ': (-42.8, -22.3), 'RN': (-36.5, -5.8), 'RS': (-53.5, -30.0),
+        'RO': (-63.0, -11.0), 'RR': (-61.0, 2.0), 'SC': (-50.5, -27.0),
+        'SE': (-37.4, -10.6), 'SP': (-49.0, -22.5), 'TO': (-48.0, -10.0)
+    }
+    
+    for _, row in df_ufs.iterrows():
+        if row['sigla'] in coords:
+            lon, lat = coords[row['sigla']]
+            fig.add_annotation(
+                x=lon, y=lat,
+                text=f"{row['similaridade']:.1f}%",
+                showarrow=False,
+                font=dict(size=8, color='black', family='Arial Black'),
+                bgcolor='rgba(255, 255, 255, 0.7)',
+                borderpad=2
+            )
     
     return fig
 
@@ -237,13 +262,37 @@ def create_brazil_titularidade_map(df):
         margin=dict(l=0, r=0, t=30, b=0),
         height=300,
         coloraxis_colorbar=dict(
-            title="CPF Igual (%)",
-            titlefont=dict(size=7),
+            title=dict(text="CPF Igual (%)", font=dict(size=7)),
             tickfont=dict(size=6),
             len=0.45,
             thickness=10
         )
     )
+    
+    # Adicionar anotações com valores nos estados
+    coords = {
+        'AC': (-70.0, -9.0), 'AL': (-36.5, -9.5), 'AP': (-51.5, 1.0),
+        'AM': (-63.0, -5.0), 'BA': (-41.5, -12.5), 'CE': (-39.5, -5.0),
+        'DF': (-47.8, -15.8), 'ES': (-40.3, -19.5), 'GO': (-49.5, -15.5),
+        'MA': (-45.0, -5.0), 'MT': (-55.5, -12.5), 'MS': (-54.5, -20.5),
+        'MG': (-44.5, -18.5), 'PA': (-52.0, -4.0), 'PB': (-36.7, -7.2),
+        'PR': (-51.5, -24.5), 'PE': (-37.5, -8.3), 'PI': (-43.0, -7.5),
+        'RJ': (-42.8, -22.3), 'RN': (-36.5, -5.8), 'RS': (-53.5, -30.0),
+        'RO': (-63.0, -11.0), 'RR': (-61.0, 2.0), 'SC': (-50.5, -27.0),
+        'SE': (-37.4, -10.6), 'SP': (-49.0, -22.5), 'TO': (-48.0, -10.0)
+    }
+    
+    for _, row in df_ufs.iterrows():
+        if row['sigla'] in coords:
+            lon, lat = coords[row['sigla']]
+            fig.add_annotation(
+                x=lon, y=lat,
+                text=f"{row['cpf_igual']:.1f}%",
+                showarrow=False,
+                font=dict(size=8, color='black', family='Arial Black'),
+                bgcolor='rgba(255, 255, 255, 0.7)',
+                borderpad=2
+            )
     
     return fig
 
