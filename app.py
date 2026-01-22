@@ -776,7 +776,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
             legend_title="Percentual de Similaridade CAR-SIGEF",
             show_pct_symbol=True, figsize=CHART_HEIGHTS['bars_normal'], legend_cols=5
         )
-        render_matplotlib()
+        render_matplotlib(use_container_width=True)
 
         st.markdown("---")
 
@@ -788,7 +788,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
             legend_title="Titularidade (CPF/CNPJ)",
             show_pct_symbol=True, figsize=CHART_HEIGHTS['bars_compact']
         )
-        render_matplotlib()
+        render_matplotlib(use_container_width=True)
 
         st.markdown("---")
 
