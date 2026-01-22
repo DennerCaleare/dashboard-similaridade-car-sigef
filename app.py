@@ -437,7 +437,9 @@ st.markdown(
 st.markdown("---")
 st.markdown("<h3 style='text-align: center;'>Filtros de Dados</h3>", unsafe_allow_html=True)
 
-metadata = load_metadata()
+# Mostrar progresso de carregamento
+with st.spinner('Carregando metadados...'):
+    metadata = load_metadata()
 
 # Usar form para evitar reruns a cada mudança de filtro
 with st.form(key="filtros_form"):
