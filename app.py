@@ -140,6 +140,17 @@ def create_brazil_choropleth_map(df, metric='jaccard_medio'):
     Returns:
         Figura plotly com o mapa
     """
+    # Mapa de siglas para nomes completos dos estados
+    ESTADOS_NOMES = {
+        'AC': 'Acre', 'AL': 'Alagoas', 'AP': 'Amapá', 'AM': 'Amazonas',
+        'BA': 'Bahia', 'CE': 'Ceará', 'DF': 'Distrito Federal', 'ES': 'Espírito Santo',
+        'GO': 'Goiás', 'MA': 'Maranhão', 'MT': 'Mato Grosso', 'MS': 'Mato Grosso do Sul',
+        'MG': 'Minas Gerais', 'PA': 'Pará', 'PB': 'Paraíba', 'PR': 'Paraná',
+        'PE': 'Pernambuco', 'PI': 'Piauí', 'RJ': 'Rio de Janeiro', 'RN': 'Rio Grande do Norte',
+        'RS': 'Rio Grande do Sul', 'RO': 'Rondônia', 'RR': 'Roraima', 'SC': 'Santa Catarina',
+        'SP': 'São Paulo', 'SE': 'Sergipe', 'TO': 'Tocantins'
+    }
+    
     # Carregar GeoJSON do Brasil
     geojson = load_brazil_geojson()
     
@@ -150,6 +161,9 @@ def create_brazil_choropleth_map(df, metric='jaccard_medio'):
     df_ufs.columns = ['sigla', 'similaridade']
     df_ufs['similaridade'] = df_ufs['similaridade'] * 100  # Converter para percentual
     
+    # Adicionar nome completo do estado
+    df_ufs['estado_nome'] = df_ufs['sigla'].map(ESTADOS_NOMES)
+    
     # Criar mapa com Plotly
     fig = px.choropleth(
         df_ufs,
@@ -159,8 +173,20 @@ def create_brazil_choropleth_map(df, metric='jaccard_medio'):
         color='similaridade',
         color_continuous_scale=['#e57373', '#ffb74d', '#fff176', '#aed581', '#81c784'],
         range_color=[0, 100],
-        labels={'similaridade': 'Similaridade (%)'},
-        hover_data={'sigla': True, 'similaridade': ':.1f'}
+        labels={'similaridade': 'Similaridade', 'estado_nome': 'Estado'},
+        hover_data={'sigla': False, 'similaridade': ':.1f', 'estado_nome': True},
+        custom_data=['estado_nome', 'similaridade']
+    )
+    
+    # Personalizar o hover template
+    fig.update_traces(
+        hovertemplate='<b>%{customdata[0]}</b><br>Similaridade = %{customdata[1]:.1f} %<extra></extra>',
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=14,
+            font_family="Arial",
+            font_color="#333333"
+        )
     )
     
     fig.update_geos(
@@ -176,13 +202,15 @@ def create_brazil_choropleth_map(df, metric='jaccard_medio'):
     
     fig.update_layout(
         title={'text': 'Similaridade por Estado', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 10}},
-        margin=dict(l=0, r=0, t=30, b=0),
+        margin=dict(l=0, r=50, t=30, b=0),
         height=300,
         coloraxis_colorbar=dict(
-            title=dict(text="Similaridade (%)", font=dict(size=7)),
-            tickfont=dict(size=6),
-            len=0.45,
-            thickness=10
+            title=dict(text="Similaridade (%)", font=dict(size=10)),
+            tickfont=dict(size=9),
+            len=0.7,
+            thickness=15,
+            x=1.02,
+            xanchor='left'
         )
     )
     
@@ -223,6 +251,17 @@ def create_brazil_titularidade_map(df):
     Returns:
         Figura plotly com o mapa
     """
+    # Mapa de siglas para nomes completos dos estados
+    ESTADOS_NOMES = {
+        'AC': 'Acre', 'AL': 'Alagoas', 'AP': 'Amapá', 'AM': 'Amazonas',
+        'BA': 'Bahia', 'CE': 'Ceará', 'DF': 'Distrito Federal', 'ES': 'Espírito Santo',
+        'GO': 'Goiás', 'MA': 'Maranhão', 'MT': 'Mato Grosso', 'MS': 'Mato Grosso do Sul',
+        'MG': 'Minas Gerais', 'PA': 'Pará', 'PB': 'Paraíba', 'PR': 'Paraná',
+        'PE': 'Pernambuco', 'PI': 'Piauí', 'RJ': 'Rio de Janeiro', 'RN': 'Rio Grande do Norte',
+        'RS': 'Rio Grande do Sul', 'RO': 'Rondônia', 'RR': 'Roraima', 'SC': 'Santa Catarina',
+        'SP': 'São Paulo', 'SE': 'Sergipe', 'TO': 'Tocantins'
+    }
+    
     # Carregar GeoJSON do Brasil
     geojson = load_brazil_geojson()
     
@@ -233,6 +272,9 @@ def create_brazil_titularidade_map(df):
     df_ufs.columns = ['sigla', 'cpf_igual']
     df_ufs['cpf_igual'] = df_ufs['cpf_igual'] * 100  # Converter para percentual
     
+    # Adicionar nome completo do estado
+    df_ufs['estado_nome'] = df_ufs['sigla'].map(ESTADOS_NOMES)
+    
     # Criar mapa com Plotly
     fig = px.choropleth(
         df_ufs,
@@ -242,8 +284,20 @@ def create_brazil_titularidade_map(df):
         color='cpf_igual',
         color_continuous_scale=['#e57373', '#ffb74d', '#fff176', '#aed581', '#81c784'],
         range_color=[0, 100],
-        labels={'cpf_igual': 'CPF Igual (%)'},
-        hover_data={'sigla': True, 'cpf_igual': ':.1f'}
+        labels={'cpf_igual': 'CPF Igual', 'estado_nome': 'Estado'},
+        hover_data={'sigla': False, 'cpf_igual': ':.1f', 'estado_nome': True},
+        custom_data=['estado_nome', 'cpf_igual']
+    )
+    
+    # Personalizar o hover template
+    fig.update_traces(
+        hovertemplate='<b>%{customdata[0]}</b><br>CPF Igual = %{customdata[1]:.1f} %<extra></extra>',
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=14,
+            font_family="Arial",
+            font_color="#333333"
+        )
     )
     
     fig.update_geos(
@@ -259,13 +313,15 @@ def create_brazil_titularidade_map(df):
     
     fig.update_layout(
         title={'text': 'Titularidade por Estado', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 10}},
-        margin=dict(l=0, r=0, t=30, b=0),
+        margin=dict(l=0, r=50, t=30, b=0),
         height=300,
         coloraxis_colorbar=dict(
-            title=dict(text="CPF Igual (%)", font=dict(size=7)),
-            tickfont=dict(size=6),
-            len=0.45,
-            thickness=10
+            title=dict(text="CPF Igual (%)", font=dict(size=10)),
+            tickfont=dict(size=9),
+            len=0.7,
+            thickness=15,
+            x=1.02,
+            xanchor='left'
         )
     )
     
