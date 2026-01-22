@@ -1,4 +1,16 @@
-# � Dashboard Similaridade CAR-SIGEF
+---
+title: Dashboard Similaridade CAR-SIGEF
+emoji: 📊
+colorFrom: green
+colorTo: blue
+sdk: streamlit
+sdk_version: "1.31.0"
+app_file: app.py
+pinned: false
+license: mit
+---
+
+# 📊 Dashboard Similaridade CAR-SIGEF
 ## Solução para Governo Federal - MGI
 
 > **Dashboard de análise de conformidade fundiária que cruza 1,3+ milhões de registros CAR vs SIGEF. Desenvolvido para o Ministério da Gestão e Inovação (MGI) com performance otimizada via DuckDB.**
