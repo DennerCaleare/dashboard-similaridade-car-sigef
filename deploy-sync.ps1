@@ -35,27 +35,9 @@ git push origin main
 if ($LASTEXITCODE -eq 0) {
     Write-Host "GitHub atualizado!" -ForegroundColor Green
     
-    # Preparar README para Hugging Face
-    if (Test-Path "README_HF.md") {
-        Write-Host "Preparando README para Hugging Face..." -ForegroundColor Yellow
-        Copy-Item README.md README_BACKUP.md -Force
-        Copy-Item README_HF.md README.md -Force
-        git add README.md
-        git commit -m "Update README for Hugging Face" --no-verify
-    }
-    
     # Push para Hugging Face
     Write-Host "Enviando para Hugging Face..." -ForegroundColor Magenta
     git push huggingface main --force
-    
-    # Restaurar README original
-    if (Test-Path "README_BACKUP.md") {
-        Copy-Item README_BACKUP.md README.md -Force
-        Remove-Item README_BACKUP.md -Force
-        git add README.md
-        git commit -m "Restore original README" --no-verify
-        git push origin main --no-verify
-    }
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Hugging Face atualizado!" -ForegroundColor Green
