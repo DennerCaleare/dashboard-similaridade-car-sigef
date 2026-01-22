@@ -202,14 +202,14 @@ def create_brazil_choropleth_map(df, metric='jaccard_medio'):
     
     fig.update_layout(
         title={'text': 'Similaridade por Estado', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 10}},
-        margin=dict(l=0, r=50, t=30, b=0),
+        margin=dict(l=0, r=20, t=30, b=0),
         height=300,
         coloraxis_colorbar=dict(
             title=dict(text="Similaridade (%)", font=dict(size=10)),
             tickfont=dict(size=9),
             len=0.7,
             thickness=15,
-            x=1.02,
+            x=0.98,
             xanchor='left'
         )
     )
@@ -313,14 +313,14 @@ def create_brazil_titularidade_map(df):
     
     fig.update_layout(
         title={'text': 'Titularidade por Estado', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 10}},
-        margin=dict(l=0, r=50, t=30, b=0),
+        margin=dict(l=0, r=20, t=30, b=0),
         height=300,
         coloraxis_colorbar=dict(
             title=dict(text="CPF Igual (%)", font=dict(size=10)),
             tickfont=dict(size=9),
             len=0.7,
             thickness=15,
-            x=1.02,
+            x=0.98,
             xanchor='left'
         )
     )
@@ -760,7 +760,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
         st.markdown("<h3 style='text-align: center;'>Titularidade por UF</h3>", unsafe_allow_html=True)
         # Ajustar altura dinamicamente
         num_ufs_tit = df_filtrado['estado'].nunique()
-        height_tit = max(2, min(7, num_ufs_tit * 0.25))
+        height_tit = max(2, min(5, num_ufs_tit * 0.2))
         zt.stacked_bar_plot(
             df_filtrado, y="estado", hue="label_cpf",
             order_hue=["Diferente", "Igual"], palette=CORES_TITULARIDADE,
