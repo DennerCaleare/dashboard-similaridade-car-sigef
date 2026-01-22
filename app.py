@@ -59,6 +59,20 @@ from src.utils import (
 # CONSTANTES DE CONFIGURAÇÃO
 # ═══════════════════════════════════════════════════════════
 
+# Alturas fixas para gráficos (evita flickering)
+CHART_HEIGHTS = {
+    'metrics': (12, 3),
+    'bars_normal': (12, 6),
+    'bars_compact': (12, 4.5),
+    'scatter': (12, 10),
+    'density': (7, 4.5),
+    'map': (7, 5),
+    'donut': (7, 4.5),
+    'temporal': (12, 6),
+    'mosaic': (12, 8),
+    'bubble': (16, 8)
+}
+
 CONFIG = {
     # Limites de dados para análises
     'MIN_RECORDS_FOR_ANALYSIS': 10,      # Mínimo de registros para análises gerais
@@ -100,6 +114,20 @@ def validate_data(df, section_name: str, min_records: int = 1) -> bool:
         return False
     
     return True
+
+def render_matplotlib(fig=None, use_container_width=False):
+    """Renderiza gráfico matplotlib com configurações otimizadas para evitar flickering.
+    
+    Args:
+        fig: Figura matplotlib (None usa plt.gcf())
+        use_container_width: Se True, usa largura do container
+    """
+    if fig is None:
+        fig = plt.gcf()
+    
+    plt.tight_layout(pad=0.3)
+    st.pyplot(fig, use_container_width=use_container_width)
+    plt.close()
 
 def show_progress_bar(message: str = "Carregando dados...", duration: float = 1.0):
     """Exibe barra de progresso animada.
@@ -371,9 +399,10 @@ def get_layout_columns(mobile_cols: int = 2, desktop_cols: int = 4) -> int:
 
 st.set_page_config(
     page_title="Dashboard Similaridade CAR-SIGEF",
-    page_icon="�",
+    page_icon="🌳",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
+    menu_items=None
 )
 
 st.markdown(CSS_CUSTOM, unsafe_allow_html=True)
@@ -685,9 +714,8 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        # Altura fixa compacta para o gráfico de barras verticais
-                        height = 4.5
-                        zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=(6, height))
+                        # Altura fixa para evitar flickering
+                        zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=CHART_HEIGHTS['bars_compact'])
                         # Tamanho da fonte responsivo baseado no número de UFs
                         ax = plt.gca()
                         num_ufs_grafico = df_filtrado['estado'].nunique()
@@ -703,28 +731,23 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                         for text in ax.texts:
                             text.set_fontsize(fontsize)
                             text.set_weight('bold')
-                        st.pyplot(plt.gcf())
-                        plt.close()
+                        render_matplotlib(use_container_width=True)
                 
                     with col2:
                         # Gráfico por região (TODAS as UFs, sem filtro)
                         if len(df_regiao) > 0:
-                            num_regioes = df_regiao['regiao'].nunique()
-                            height_regiao = 4.5  # Mesma altura do gráfico de barras
                             zt.stacked_bar_plot(
                                 df_regiao, y="regiao", hue="faixa_jaccard",
                                 order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
                                 legend_title="Percentual de Similaridade CAR-SIGEF",
-                                show_pct_symbol=True, figsize=(6, height_regiao), legend_cols=5
+                                show_pct_symbol=True, figsize=CHART_HEIGHTS['bars_compact'], legend_cols=5
                             )
-                            st.pyplot(plt.gcf())
-                            plt.close()
+                            render_matplotlib(use_container_width=True)
                         else:
                             st.info("Sem dados para panorama regional.")
                 else:
                     # Sem gráfico regional: gráfico de barras ocupa largura total
-                    height = 4.5
-                    zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=(12, height))
+                    zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=CHART_HEIGHTS['bars_compact'])
                     # Tamanho da fonte responsivo baseado no número de UFs
                     ax = plt.gca()
                     num_ufs_grafico = df_filtrado['estado'].nunique()
@@ -739,8 +762,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                     for text in ax.texts:
                         text.set_fontsize(fontsize)
                         text.set_weight('bold')
-                    st.pyplot(plt.gcf())
-                    plt.close()
+                    render_matplotlib()
             # Se apenas 1 UF: não mostrar gráfico de barras por UF
 
         st.markdown("---")
@@ -752,25 +774,21 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
             df_filtrado, y="estado", hue="faixa_jaccard",
             order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
             legend_title="Percentual de Similaridade CAR-SIGEF",
-            show_pct_symbol=True, figsize=(12, height_estado), legend_cols=5
+            show_pct_symbol=True, figsize=CHART_HEIGHTS['bars_normal'], legend_cols=5
         )
-        st.pyplot(plt.gcf())
-        plt.close()
+        render_matplotlib()
 
         st.markdown("---")
 
         st.markdown("<h3 style='text-align: center;'>Titularidade por UF</h3>", unsafe_allow_html=True)
-        # Ajustar altura dinamicamente
-        num_ufs_tit = df_filtrado['estado'].nunique()
-        height_tit = max(2, min(5, num_ufs_tit * 0.2))
+        # Altura fixa para titularidade
         zt.stacked_bar_plot(
             df_filtrado, y="estado", hue="label_cpf",
             order_hue=["Diferente", "Igual"], palette=CORES_TITULARIDADE,
             legend_title="Titularidade (CPF/CNPJ)",
-            show_pct_symbol=True, figsize=(12, height_tit)
+            show_pct_symbol=True, figsize=CHART_HEIGHTS['bars_compact']
         )
-        st.pyplot(plt.gcf())
-        plt.close()
+        render_matplotlib()
 
         st.markdown("---")
 
@@ -781,10 +799,9 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
             zt.stacked_bar_plot(
                 df_filtrado, y='faixa_jaccard', hue='label_cpf',
                 order_hue=["Diferente", "Igual"], palette=CORES_TITULARIDADE,
-                legend_title="Titularidade (CPF/CNPJ)", show_pct_symbol=True, figsize=(7, 4)
+                legend_title="Titularidade (CPF/CNPJ)", show_pct_symbol=True, figsize=CHART_HEIGHTS['density']
             )
-            st.pyplot(plt.gcf())
-            plt.close()
+            render_matplotlib(use_container_width=True)
 
         with col2:
             st.markdown("<h3 style='text-align: center;'>Classe de Tamanho vs Similaridade</h3>", unsafe_allow_html=True)
@@ -792,10 +809,9 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                 df_filtrado, y="class_tam_imovel", hue="faixa_jaccard",
                 order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
                 legend_title="Percentual de Similaridade CAR-SIGEF",
-                show_pct_symbol=True, figsize=(7, 4), legend_cols=5
+                show_pct_symbol=True, figsize=CHART_HEIGHTS['density'], legend_cols=5
             )
-            st.pyplot(plt.gcf())
-            plt.close()
+            render_matplotlib(use_container_width=True)
 
         st.markdown("---")
 

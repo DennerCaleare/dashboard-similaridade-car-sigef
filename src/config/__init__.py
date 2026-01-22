@@ -21,6 +21,33 @@ Desenvolvido para: Ministério da Gestão e Inovação (MGI)
 
 CSS_CUSTOM = """
 <style>
+    /* Prevenir refluxo e flickering */
+    .element-container {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    /* Remover toolbar flutuante de gráficos */
+    [data-testid="stElementToolbar"] {
+        display: none;
+    }
+    
+    /* Estabilizar viewport */
+    html, body {
+        overflow-x: hidden !important;
+        max-width: 100vw !important;
+    }
+    
+    [data-testid="stAppViewContainer"] {
+        overflow-x: hidden !important;
+        max-width: 100vw !important;
+    }
+    
+    /* Fixar gráficos Plotly */
+    .js-plotly-plot {
+        max-width: 100% !important;
+    }
+    
     /* Estilo para títulos */
     h1 {
         color: #1f77b4;
