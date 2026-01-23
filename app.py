@@ -62,8 +62,8 @@ from src.utils import (
 # Alturas fixas para gráficos (evita flickering)
 CHART_HEIGHTS = {
     'metrics': (12, 3),
-    'bars_normal': (12, 6),
-    'bars_compact': (12, 4.5),
+    'bars_normal': (12, 8),     # Aumentado de 6 para 8
+    'bars_compact': (12, 8),    # Aumentado de 4.5 para 8
     'scatter': (12, 10),
     'density': (7, 4.5),
     'map': (7, 5),
@@ -87,6 +87,421 @@ CONFIG = {
     'DEFAULT_FIGSIZE': (12, 6),          # Tamanho padrão de figuras matplotlib
     'MOBILE_BREAKPOINT': 768,            # Breakpoint para layout mobile (pixels)
 }
+
+# ═══════════════════════════════════════════════════════════
+# FUNÇÕES CUSTOMIZADAS DE PLOTTING (DO NOTEBOOK)
+# ═══════════════════════════════════════════════════════════
+
+import matplotlib.dates as mdates
+import matplotlib.ticker as ticker
+from typing import Literal
+
+def _ajustar_posicoes_texto(posicoes, min_dist=3.0):
+    """Função auxiliar para evitar sobreposição de texto no eixo Y."""
+    ordenado = sorted(posicoes, key=lambda k: k['y'], reverse=True)
+    if len(ordenado) < 2: return ordenado
+
+    for i in range(1, len(ordenado)):
+        anterior = ordenado[i-1]
+        atual = ordenado[i]
+        dist = anterior['y_ajustado'] - atual['y']
+        
+        if dist < min_dist:
+            novo_y = anterior['y_ajustado'] - min_dist
+            atual['y_ajustado'] = novo_y
+        else:
+            atual['y_ajustado'] = atual['y']
+    return ordenado
+
+def plot_evolucao_multi_swd(
+    df: pd.DataFrame,
+    x: str,
+    y: str,
+    hue: str,
+    agg: Literal['mean', 'median', 'sum'] = 'median',
+    title: str = "",
+    subtitle: str = "",
+    highlights: list | None = None,
+    gray_color: str = "#e0e0e0",
+    label_mode: Literal['end', 'both'] = 'end',
+    show_y_axis: bool = False,
+    palette: dict | str = "viridis", 
+    figsize: tuple = (12, 6),
+    line_width: float = 2.5,
+    y_format: Literal['number', 'percent'] = 'number',
+    date_format: str | None = None,
+    collision_spacing: float = 3.0,
+    ax: plt.Axes | None = None,
+) -> plt.Axes:
+    
+    dados = df.groupby([x, hue])[y].agg(agg).reset_index()
+    grupos = dados[hue].unique()
+    
+    if isinstance(palette, dict):
+        color_map = palette
+    else:
+        cmap = plt.get_cmap(palette)
+        cols = cmap(np.linspace(0.2, 0.8, len(grupos)))
+        color_map = {g: c for g, c in zip(grupos, cols)}
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.get_figure()
+
+    final_labels_data = []
+    
+    # PLOTAGEM
+    for grupo in grupos:
+        subset = dados[dados[hue] == grupo].sort_values(x)
+        is_highlighted = (highlights is None) or (grupo in highlights)
+        
+        cor = color_map.get(grupo, "#333333") if is_highlighted else gray_color
+        lw = (line_width + 1) if (highlights and is_highlighted) else (1.5 if highlights else line_width)
+        alpha = 1.0 if is_highlighted else 0.7
+        z_order = 5 if is_highlighted else 1
+        font_weight = 'bold' if is_highlighted else 'normal'
+
+        ax.plot(subset[x], subset[y], color=cor, linewidth=lw, alpha=alpha, zorder=z_order)
+        
+        start_x, start_y = subset[x].iloc[0], subset[y].iloc[0]
+        end_x, end_y = subset[x].iloc[-1], subset[y].iloc[-1]
+        
+        def fmt(val): return f"{val:.0f}%" if y_format == 'percent' else f"{val:.1f}"
+
+        if label_mode == 'both':
+            ax.scatter(start_x, start_y, color=cor, s=40, zorder=z_order, edgecolors='white')
+            ax.annotate(fmt(start_y), (start_x, start_y), xytext=(-8, 0), textcoords='offset points',
+                        color=cor, fontsize=10, fontweight=font_weight, ha='right', va='center')
+
+        s_size = 50 if is_highlighted else 20
+        ax.scatter(end_x, end_y, color=cor, s=s_size, zorder=z_order, edgecolors='white')
+
+        label_text = f" {grupo} {fmt(end_y)}" if is_highlighted else f" {grupo}"
+        final_labels_data.append({
+            'y': end_y, 'y_ajustado': end_y, 'x': end_x,
+            'text': label_text, 'color': cor,
+            'fontsize': 11 if is_highlighted else 9, 'weight': font_weight
+        })
+
+    # ANTI-COLISÃO
+    final_labels_data = _ajustar_posicoes_texto(final_labels_data, min_dist=collision_spacing)
+    for item in final_labels_data:
+        ax.annotate(item['text'], xy=(item['x'], item['y_ajustado']), xytext=(8, 0), 
+                    textcoords='offset points', color=item['color'], fontsize=item['fontsize'], 
+                    fontweight=item['weight'], ha='left', va='center')
+
+    # ESTILO E EIXOS
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_color('#cccccc')
+    
+    # Grid Vertical
+    ax.xaxis.grid(True, linestyle='--', alpha=0.5, color='#b0b0b0')
+    
+    if show_y_axis:
+        ax.spines['left'].set_visible(False)
+        ax.tick_params(axis='y', colors='grey', labelsize=12, length=0) 
+        ax.yaxis.grid(True, linestyle='-', alpha=0.4, color='#b0b0b0')
+        
+        if y_format == 'percent':
+            ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, p: f"{x:.0f}%"))
+        elif y_format == 'currency':
+            ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, p: f"R${x:,.0f}"))
+    else:
+        ax.spines['left'].set_visible(False)
+        ax.set_yticks([])
+        ax.set_ylabel('')
+
+    if date_format:
+        ax.xaxis.set_major_formatter(mdates.DateFormatter(date_format))
+    ax.tick_params(axis='x', colors='grey', labelsize=12)    
+    ax.set_xlabel('')
+
+    # CONTROLE DE MARGEM
+    if pd.api.types.is_datetime64_any_dtype(dados[x]):
+        min_date, max_date = dados[x].min(), dados[x].max()
+        margin = (max_date - min_date) * 0.15 
+        ax.set_xlim(right=max_date + margin)
+
+    if title:
+        ax.text(x=0, y=1.12, s=title, transform=ax.transAxes, fontsize=16, fontweight='bold', color='#333333', ha='left')
+    if subtitle:
+        ax.text(x=0, y=1.06, s=subtitle, transform=ax.transAxes, fontsize=11, color='grey', ha='left')
+
+    plt.tight_layout()
+    return ax
+
+def plot_evolucao_combo(
+    df: pd.DataFrame,
+    x: str,
+    y: str,
+    df_bars: pd.DataFrame | None = None,
+    x_bars: str | None = None,
+    y_bars: str | None = None,
+    y_bars_total: str | None = None,
+    agg: Literal['mean', 'median', 'sum'] = 'median',
+    title: str = "",
+    subtitle: str = "",
+    color_line: str = "#2563eb",
+    color_bars: str = "#2563eb",
+    color_bars_total: str = "#e0e0e0",
+    figsize: tuple = (12, 6),
+    line_width: float = 3,
+    bar_width: float = 0.6,
+    bar_alpha: float = 0.7,
+    bar_total_alpha: float = 0.3,
+    show_trend: bool = False,
+    label_mode: Literal['all', 'end', 'both', 'none'] = 'both',
+    show_bar_labels: bool = True,
+    show_bar_total_labels: bool = True,
+    y_format: Literal['number', 'percent', 'currency'] = 'number',
+    y2_format: Literal['number', 'percent', 'currency'] = 'number',
+    show_legend: bool = True,
+    legend_line_label: str = "Métrica",
+    legend_bar_label: str = "Parcial",
+    legend_bar_total_label: str = "Total",
+    date_format: str | None = None,
+    ax: plt.Axes | None = None,
+    ylim_line: tuple | None = None,
+    ylim_bars: tuple | None = None,
+    yscale_line: Literal['linear', 'log', 'symlog'] = 'linear',
+    yscale_bars: Literal['linear', 'log', 'symlog'] = 'linear',
+) -> plt.Axes:
+    
+    def format_value(val, fmt):
+        if fmt == 'percent':
+            return f"{val:.0f}%"
+        elif fmt == 'currency':
+            if val >= 1_000_000:
+                return f"R${val/1_000_000:.1f}M"
+            elif val >= 1_000:
+                return f"R${val/1_000:.0f}K"
+            return f"R${val:.0f}"
+        else:
+            if val >= 1_000_000:
+                return f"{val/1_000_000:.1f}M"
+            elif val >= 1_000:
+                return f"{val/1_000:.0f}K"
+            return f"{val:.0f}"
+
+    # PREPARAÇÃO DOS DADOS
+    dados_linha = df.groupby(x)[y].agg(agg).reset_index().sort_values(x)
+    x_vals = dados_linha[x]
+    y_vals = dados_linha[y]
+
+    if df_bars is not None:
+        x_bars = x_bars or x
+        dados_barras = df_bars.sort_values(x_bars)
+        x_bars_vals = dados_barras[x_bars]
+        y_bars_vals = dados_barras[y_bars]
+
+        if y_bars_total is not None:
+            y_bars_total_vals = dados_barras[y_bars_total]
+
+    # CRIAR FIGURA
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.get_figure()
+
+    ax.set_yscale(yscale_line)
+
+    # PLOTAR BARRAS
+    ax2 = None
+    if df_bars is not None:
+        ax2 = ax.twinx()
+        ax2.set_yscale(yscale_bars)
+
+        x_positions = np.arange(len(x_bars_vals))
+
+        if y_bars_total is not None:
+            max_bar_val = np.nanmax(y_bars_total_vals.to_numpy())
+        else:
+            max_bar_val = np.nanmax(y_bars_vals.to_numpy())
+
+        # BARRA DE FUNDO (TOTAL)
+        if y_bars_total is not None:
+            bars_total = ax2.bar(
+                x_positions,
+                y_bars_total_vals,
+                width=bar_width,
+                color=color_bars_total,
+                alpha=bar_total_alpha,
+                zorder=1,
+                edgecolor='white',
+                linewidth=0.5
+            )
+
+            if show_bar_total_labels:
+                for bar, val in zip(bars_total, y_bars_total_vals):
+                    height = bar.get_height()
+                    label = format_value(val, y2_format)
+                    ax2.annotate(
+                        label,
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 5),
+                        textcoords="offset points",
+                        ha='center', va='bottom',
+                        fontsize=8, color='#888888'
+                    )
+
+        # BARRA DA FRENTE (PARCIAL)
+        bars = ax2.bar(
+            x_positions,
+            y_bars_vals,
+            width=bar_width,
+            color=color_bars,
+            alpha=bar_alpha,
+            zorder=2,
+            edgecolor='white',
+            linewidth=0.5
+        )
+
+        if show_bar_labels:
+            for bar, val in zip(bars, y_bars_vals):
+                height = bar.get_height()
+                label = format_value(val, y2_format)
+
+                if y_bars_total is not None:
+                    ax2.annotate(
+                        label,
+                        xy=(bar.get_x() + bar.get_width() / 2, height / 2),
+                        ha='center', va='center',
+                        fontsize=8, fontweight='bold', color='white'
+                    )
+                else:
+                    ax2.annotate(
+                        label,
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 5),
+                        textcoords="offset points",
+                        ha='center', va='bottom',
+                        fontsize=8, color='#888888'
+                    )
+
+        # Remover eixos Y (visual)
+        ax2.set_yticks([])
+        ax2.spines['right'].set_visible(False)
+        ax2.spines['left'].set_visible(False)
+        ax2.spines['top'].set_visible(False)
+        ax2.tick_params(axis='y', left=False, right=False)
+
+        if ylim_bars is not None:
+            ax2.set_ylim(ylim_bars)
+        else:
+            ax2.set_ylim(0, max_bar_val * 1.3)
+
+    # PLOTAR LINHA
+    if df_bars is not None:
+        x_plot = x_positions
+    else:
+        x_plot = x_vals
+
+    if show_trend:
+        x_numeric = np.arange(len(x_vals))
+        z = np.polyfit(x_numeric, y_vals, 1)
+        p = np.poly1d(z)
+        ax.plot(x_plot, p(x_numeric), color='grey', linestyle='--', alpha=0.4, lw=1, zorder=3)
+
+    ax.plot(x_plot, y_vals, color=color_line, linewidth=line_width, zorder=4)
+
+    if ylim_line is not None:
+        ax.set_ylim(ylim_line)
+
+    def fmt_val(val):
+        if y_format == 'percent':
+            return f"{val:.0f}%"
+        elif y_format == 'currency':
+            return f"R${val:,.0f}"
+        return f"{val:.1f}"
+
+    if label_mode == 'all':
+        ax.scatter(x_plot, y_vals, color=color_line, s=50, zorder=5, edgecolors='white', linewidths=2)
+        for xv, yv in zip(x_plot, y_vals):
+            ax.annotate(
+                fmt_val(yv), (xv, yv),
+                xytext=(0, 12), textcoords='offset points',
+                color=color_line, fontsize=10, fontweight='bold', ha='center', va='bottom'
+            )
+    else:
+        if label_mode in ['both', 'start']:
+            start_x = x_plot.iloc[0] if hasattr(x_plot, 'iloc') else x_plot[0]
+            ax.scatter(start_x, y_vals.iloc[0], color=color_line, s=60, zorder=5, edgecolors='white', linewidths=2)
+            ax.annotate(
+                fmt_val(y_vals.iloc[0]),
+                (start_x, y_vals.iloc[0]),
+                xytext=(-10, 0), textcoords='offset points',
+                color=color_line, fontsize=11, fontweight='bold', ha='right', va='center'
+            )
+
+        if label_mode in ['both', 'end']:
+            end_x = x_plot.iloc[-1] if hasattr(x_plot, 'iloc') else x_plot[-1]
+            ax.scatter(end_x, y_vals.iloc[-1], color=color_line, s=60, zorder=5, edgecolors='white', linewidths=2)
+            ax.annotate(
+                fmt_val(y_vals.iloc[-1]),
+                (end_x, y_vals.iloc[-1]),
+                xytext=(10, 0), textcoords='offset points',
+                color=color_line, fontsize=11, fontweight='bold', ha='left', va='center'
+            )
+
+    # ESTILO
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_color('#cccccc')
+
+    ax.set_yticks([])
+    ax.tick_params(axis='y', left=False, labelleft=False)
+
+    if df_bars is not None:
+        ax.set_xticks(x_positions)
+        ax.set_xticklabels(x_bars_vals, fontsize=10)
+
+    ax.tick_params(axis='x', colors='grey', labelsize=10)
+    ax.set_xlabel('')
+
+    ax.xaxis.grid(True, linestyle='--', alpha=0.3, color='#e0e0e0')
+
+    if df_bars is not None:
+        ax.set_xlim(-0.5, len(x_positions) - 0.5)
+
+    # LEGENDA
+    if show_legend and df_bars is not None:
+        from matplotlib.lines import Line2D
+        from matplotlib.patches import Patch
+
+        legend_elements = [
+            Line2D([0], [0], color=color_line, linewidth=line_width, label=legend_line_label),
+            Patch(facecolor=color_bars, alpha=bar_alpha, edgecolor='white', label=legend_bar_label),
+        ]
+
+        if y_bars_total is not None:
+            legend_elements.append(
+                Patch(facecolor=color_bars_total, alpha=bar_total_alpha, edgecolor='white', label=legend_bar_total_label)
+            )
+
+        ax.legend(
+            handles=legend_elements,
+            loc='upper center',
+            bbox_to_anchor=(0.5, -0.08),
+            ncol=3 if y_bars_total else 2,
+            frameon=False,
+            fontsize=10,
+            columnspacing=3,
+            handletextpad=0.8
+        )
+
+    # TÍTULOS
+    if title:
+        ax.text(x=0, y=1.12, s=title, transform=ax.transAxes,
+                fontsize=16, fontweight='bold', color='#333333', ha='left')
+    if subtitle:
+        ax.text(x=0, y=1.06, s=subtitle, transform=ax.transAxes,
+                fontsize=11, color='grey', ha='left')
+
+    plt.tight_layout()
+    return ax
 
 # ═══════════════════════════════════════════════════════════
 # FUNÇÕES AUXILIARES
@@ -721,13 +1136,13 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                         num_ufs_grafico = df_filtrado['estado'].nunique()
                         # Quando poucas UFs: fonte maior (10-12), quando muitas: fonte menor (6-7)
                         if num_ufs_grafico <= 5:
-                            fontsize = 10
+                            fontsize = 16
                         elif num_ufs_grafico <= 10:
-                            fontsize = 8
+                            fontsize = 14
                         elif num_ufs_grafico <= 20:
-                            fontsize = 6
+                            fontsize = 12
                         else:
-                            fontsize = 5
+                            fontsize = 10
                         for text in ax.texts:
                             text.set_fontsize(fontsize)
                             text.set_weight('bold')
@@ -752,13 +1167,13 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                     ax = plt.gca()
                     num_ufs_grafico = df_filtrado['estado'].nunique()
                     if num_ufs_grafico <= 5:
-                        fontsize = 10
+                        fontsize = 16
                     elif num_ufs_grafico <= 10:
-                        fontsize = 8
+                        fontsize = 14
                     elif num_ufs_grafico <= 20:
-                        fontsize = 6
+                        fontsize = 12
                     else:
-                        fontsize = 5
+                        fontsize = 10
                     for text in ax.texts:
                         text.set_fontsize(fontsize)
                         text.set_weight('bold')
@@ -840,11 +1255,14 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                     if len(df_plot) >= 10 and len(tamanhos_disponiveis) > 0:
                         fig, ax = plt.subplots(figsize=(7, 4.5))
                         
+                        # Cores conforme notebook (gráfico de densidade)
+                        cores_tamanho_kde = {"Pequeno": "#FF9D89", "Médio": "#E5D950", "Grande": "#7DBA84"}
+                        
                         sns.kdeplot(
                             data=df_plot, x="indice_jaccard_pct", hue="class_tam_imovel",
                             hue_order=[t for t in ["Pequeno", "Médio", "Grande"] if t in tamanhos_disponiveis],
                             fill=True, common_norm=False, alpha=0.2, linewidth=3,
-                            palette={k: v for k, v in CORES_TAMANHO.items() if k in tamanhos_disponiveis},
+                            palette={k: v for k, v in cores_tamanho_kde.items() if k in tamanhos_disponiveis},
                             clip=(0, 100), legend=False, ax=ax, warn_singular=False
                         )
                         
@@ -857,13 +1275,13 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                         # Labels diretos nas curvas (sem caixa de legenda)
                         y_max = ax.get_ylim()[1]
                         if "Pequeno" in tamanhos_disponiveis:
-                            ax.text(2, y_max * 0.15, "Pequeno", color=CORES_TAMANHO["Pequeno"], 
+                            ax.text(2, y_max * 0.15, "Pequeno", color=cores_tamanho_kde["Pequeno"], 
                                    fontsize=14, fontweight='bold')
                         if "Médio" in tamanhos_disponiveis:
-                            ax.text(90, y_max * 0.85, "Médio", color=CORES_TAMANHO["Médio"], 
+                            ax.text(90, y_max * 0.85, "Médio", color=cores_tamanho_kde["Médio"], 
                                    fontsize=14, fontweight='bold', ha='right')
                         if "Grande" in tamanhos_disponiveis:
-                            ax.text(90, y_max * 0.70, "Grande", color=CORES_TAMANHO["Grande"], 
+                            ax.text(90, y_max * 0.70, "Grande", color=cores_tamanho_kde["Grande"], 
                                    fontsize=14, fontweight='bold', ha='right')
                         
                         plt.tight_layout()
@@ -954,63 +1372,80 @@ with st.expander("Evolução Temporal", expanded=True):
     if not validate_data(df_filtrado, "Evolução Temporal", min_records=CONFIG['MIN_RECORDS_FOR_ANALYSIS']):
         pass  # Mensagem já exibida pela função
     else:
-        # Usar agregação SQL para economizar memória
         if 'ano_cadastro' in df_filtrado.columns:
-            # Dados já agregados - apenas filtrar
-            df_ano_total = df_filtrado.groupby('ano_cadastro').size().reset_index(name='total')
+            # 1. Preparar dados para gráfico combo (linha + barras)
             df_ano_sim = df_filtrado.groupby('ano_cadastro')['indice_jaccard'].median().reset_index()
+            df_ano_sim['ano_cadastro'] = df_ano_sim['ano_cadastro'].astype(int)  # Remove .0
             df_ano_sim['indice_jaccard'] = df_ano_sim['indice_jaccard'] * 100
-            df_ano_total.columns = ['ano', 'total']
-            df_ano_sim.columns = ['ano', 'indice_jaccard']
             
-            if len(df_ano_total) > 0:
-                st.markdown("<h3 style='text-align: center;'>Volume de CARs e Similaridade Mediana por Ano</h3>", unsafe_allow_html=True)
+            # Contar CARs com similaridade por ano
+            df_car_com_simi_por_ano = df_filtrado.groupby('ano_cadastro').size().reset_index(name='total_simi')
+            df_car_com_simi_por_ano['ano_cadastro'] = df_car_com_simi_por_ano['ano_cadastro'].astype(int)  # Remove .0
+            
+            # Verificar se temos a coluna de total de CARs cadastrados
+            if 'total_cars_cadastrados' in df_filtrado.columns:
+                # Pegar o total de CARs cadastrados por ano (já está no dataframe)
+                df_total_por_ano = df_filtrado.groupby('ano_cadastro')['total_cars_cadastrados'].first().reset_index()
+                df_total_por_ano['ano_cadastro'] = df_total_por_ano['ano_cadastro'].astype(int)  # Remove .0
+                df_total_por_ano.columns = ['ano_cadastro', 'total_total']
                 
-                # Validar dados antes de plotar
-                if len(df_ano_total) > 1 and df_ano_total['total'].max() > 0:
-                    fig, ax1 = plt.subplots(figsize=(12, 6))
-                    x_pos = np.arange(len(df_ano_total))
-                    
-                    # Barras (volume)
-                    bars = ax1.bar(x_pos, df_ano_total['total'], color='#e0e0e0', alpha=0.6, width=0.6)
-                    for bar, val in zip(bars, df_ano_total['total']):
-                        height = bar.get_height()
-                        label = f"{val/1000:.0f}K" if val >= 1000 else str(val)
-                        ax1.text(bar.get_x() + bar.get_width()/2, height, label,
-                                ha='center', va='bottom', fontsize=8, color='#888888')
-                    
-                    ax1.set_ylabel('Total de CARs', fontsize=10, color='#888888')
-                    ax1.tick_params(axis='y', labelcolor='#888888', labelsize=9)
-                    ax1.set_ylim(0, df_ano_total['total'].max() * 1.15)
-                    
-                    # Linha (similaridade)
-                    ax2 = ax1.twinx()
-                    ax2.plot(x_pos, df_ano_sim['indice_jaccard'], color='#2563eb', linewidth=3,
-                            marker='o', markersize=8, markeredgecolor='white', markeredgewidth=2, zorder=3)
-                    
-                    for x, y in zip(x_pos, df_ano_sim['indice_jaccard']):
-                        ax2.text(x, y, f"{y:.0f}%", ha='center', va='bottom',
-                                fontsize=9, fontweight='bold', color='#2563eb')
-                    
-                    ax2.set_ylabel('Similaridade Mediana (%)', fontsize=10, color='#2563eb')
-                    ax2.tick_params(axis='y', labelcolor='#2563eb', labelsize=9)
-                    
-                    ax1.set_xticks(x_pos)
-                    ax1.set_xticklabels(df_ano_total['ano'].astype(int), fontsize=10)
-                    ax1.set_xlabel('')
-                    ax1.spines['top'].set_visible(False)
-                    ax2.spines['top'].set_visible(False)
-                    ax1.grid(axis='x', linestyle='--', alpha=0.3)
-                    
-                    plt.tight_layout()
+                # Consolidar DataFrames
+                df_bars = df_total_por_ano.merge(
+                    df_car_com_simi_por_ano,
+                    on='ano_cadastro',
+                    how='left'
+                ).fillna(0)
+                
+                has_total_data = True
+            else:
+                # Caso não tenha a coluna, usar apenas dados de similaridade
+                df_bars = df_car_com_simi_por_ano.copy()
+                df_bars.columns = ['ano_cadastro', 'total_simi']
+                has_total_data = False
+            
+            # Plotar gráfico combo
+            if len(df_ano_sim) > 1:
+                st.markdown("<h3 style='text-align: center;'>Evolução da Similaridade Mediana por Ano</h3>", unsafe_allow_html=True)
+                
+                try:
+                    fig, ax = plt.subplots(figsize=(11, 7))
+                    plot_evolucao_combo(
+                        df=df_ano_sim,
+                        x='ano_cadastro',
+                        y='indice_jaccard',
+                        agg='median',
+                        df_bars=df_bars,
+                        x_bars='ano_cadastro',
+                        y_bars='total_simi',
+                        y_bars_total='total_total' if has_total_data else None,
+                        color_line='#2563eb',
+                        color_bars='#2563eb',
+                        color_bars_total='#cccccc',
+                        bar_alpha=0.8,
+                        bar_total_alpha=0.3,
+                        label_mode='all',
+                        show_bar_labels=True,
+                        show_bar_total_labels=has_total_data,
+                        y_format='percent',
+                        y2_format='number',
+                        legend_line_label='Similaridade (Mediana)',
+                        legend_bar_label='N° de CARs com Similaridade',
+                        legend_bar_total_label='N° de CARs Cadastrados' if has_total_data else '',
+                        figsize=(11, 7),
+                        ylim_line=(61, 100),
+                        ylim_bars=(0, 1250000) if has_total_data else None,
+                        ax=ax
+                    )
                     st.pyplot(fig)
                     plt.close()
-                else:
-                    st.info("ℹ️ Dados insuficientes para gráfico temporal (necessário pelo menos 2 anos com dados).")
+                except Exception as e:
+                    st.warning(f"⚠️ Não foi possível gerar gráfico temporal: {str(e)}")
+            else:
+                st.info("ℹ️ Dados insuficientes para gráfico temporal (necessário pelo menos 2 anos com dados).")
         else:
             st.warning("⚠️ Coluna de data não disponível para análise temporal.")
         
-        # Análise por tamanho e região - simplificada
+        # Análise por tamanho e região
         st.markdown("---")
         
         if 'ano_cadastro' in df_filtrado.columns and 'class_tam_imovel' in df_filtrado.columns:
@@ -1019,56 +1454,88 @@ with st.expander("Evolução Temporal", expanded=True):
             with col1:
                 st.markdown("<h3 style='text-align: center;'>Evolução por Tamanho</h3>", unsafe_allow_html=True)
                 try:
-                    # Agregar por ano e tamanho
-                    df_tam_ano = df_filtrado.groupby(['ano_cadastro', 'class_tam_imovel'])['indice_jaccard'].median().reset_index()
-                    df_tam_ano['indice_jaccard'] = df_tam_ano['indice_jaccard'] * 100
+                    # Preparar dados
+                    df_tam = df_filtrado[['ano_cadastro', 'indice_jaccard', 'class_tam_imovel']].dropna()
                     
-                    fig, ax = plt.subplots(figsize=(7, 4.5))
-                    for tamanho in ["Pequeno", "Médio", "Grande"]:
-                        df_t = df_tam_ano[df_tam_ano['class_tam_imovel'] == tamanho]
-                        if len(df_t) > 1:
-                            ax.plot(df_t['ano_cadastro'].astype(int), df_t['indice_jaccard'],
-                                   color=CORES_EVOLUCAO_TAMANHO.get(tamanho, '#333'),
-                                   linewidth=2.5, label=tamanho, marker='o', markersize=6)
-                    
-                    ax.set_xlabel('Ano', fontsize=10, color='grey')
-                    ax.set_ylabel('Similaridade Mediana (%)', fontsize=10)
-                    ax.legend(loc='best', frameon=False, fontsize=9)
-                    ax.grid(axis='both', linestyle='--', alpha=0.3)
-                    ax.spines['top'].set_visible(False)
-                    ax.spines['right'].set_visible(False)
-                    plt.tight_layout()
-                    st.pyplot(fig)
-                    plt.close()
+                    if len(df_tam) > 10:
+                        df_tam = df_tam.copy()
+                        df_tam['ano_cadastro'] = df_tam['ano_cadastro'].astype(int)  # Remove .0
+                        df_tam['indice_jaccard'] = df_tam['indice_jaccard'] * 100
+                        
+                        # Cores conforme notebook
+                        cores_tamanho = {"Pequeno": "#2980b9", "Médio": "#8e44ad", "Grande": "#2c3e50"}
+                        
+                        fig, ax = plt.subplots(figsize=(10, 6))
+                        plot_evolucao_multi_swd(
+                            df=df_tam,
+                            x='ano_cadastro',
+                            y='indice_jaccard',
+                            hue='class_tam_imovel',
+                            agg='median',
+                            palette=cores_tamanho,
+                            y_format='percent',
+                            figsize=(10, 6),
+                            label_mode='end',
+                            show_y_axis=True,
+                            ax=ax
+                        )
+                        st.pyplot(fig)
+                        plt.close()
+                    else:
+                        st.info("Dados insuficientes para análise por tamanho")
                 except Exception as e:
-                    st.warning(f"⚠️ Dados insuficientes para análise por tamanho")
+                    st.warning(f"⚠️ Erro ao gerar gráfico: {str(e)}")
             
             with col2:
                 st.markdown("<h3 style='text-align: center;'>Evolução por Região</h3>", unsafe_allow_html=True)
                 try:
-                    # Agregar por ano e região
-                    df_reg_ano = df_filtrado.groupby(['ano_cadastro', 'regiao'])['indice_jaccard'].median().reset_index()
-                    df_reg_ano['indice_jaccard'] = df_reg_ano['indice_jaccard'] * 100
+                    # Preparar dados
+                    df_reg = df_filtrado[['ano_cadastro', 'indice_jaccard', 'regiao']].dropna()
                     
-                    fig, ax = plt.subplots(figsize=(7, 4.5))
-                    for regiao in df_reg_ano['regiao'].unique():
-                        df_r = df_reg_ano[df_reg_ano['regiao'] == regiao]
-                        if len(df_r) > 1:
-                            ax.plot(df_r['ano_cadastro'].astype(int), df_r['indice_jaccard'],
-                                   color=CORES_EVOLUCAO_REGIAO.get(regiao, '#333'),
-                                   linewidth=2.5, label=regiao.title(), marker='o', markersize=6)
-                    
-                    ax.set_xlabel('Ano', fontsize=10, color='grey')
-                    ax.set_ylabel('Similaridade Mediana (%)', fontsize=10)
-                    ax.legend(loc='best', frameon=False, fontsize=9)
-                    ax.grid(axis='both', linestyle='--', alpha=0.3)
-                    ax.spines['top'].set_visible(False)
-                    ax.spines['right'].set_visible(False)
-                    plt.tight_layout()
-                    st.pyplot(fig)
-                    plt.close()
+                    if len(df_reg) > 10:
+                        df_reg = df_reg.copy()
+                        df_reg['ano_cadastro'] = df_reg['ano_cadastro'].astype(int)  # Remove .0
+                        df_reg['indice_jaccard'] = df_reg['indice_jaccard'] * 100
+                        
+                        # Mapear regiões para nomes com inicial maiúscula
+                        mapa_regioes = {
+                            'centro_oeste': 'Centro-Oeste',
+                            'nordeste': 'Nordeste',
+                            'norte': 'Norte',
+                            'sudeste': 'Sudeste',
+                            'sul': 'Sul'
+                        }
+                        df_reg['regiao_nome'] = df_reg['regiao'].map(mapa_regioes)
+                        
+                        # Cores conforme notebook
+                        cores_regiao = {
+                            "Centro-Oeste": "#2c3e50",
+                            "Nordeste": "#2980b9",
+                            "Norte": "#27ae60",
+                            "Sudeste": "#e67e22",
+                            "Sul": "#8e44ad"
+                        }
+                        
+                        fig, ax = plt.subplots(figsize=(10, 6))
+                        plot_evolucao_multi_swd(
+                            df=df_reg,
+                            x='ano_cadastro',
+                            y='indice_jaccard',
+                            hue='regiao_nome',
+                            agg='median',
+                            palette=cores_regiao,
+                            y_format='percent',
+                            figsize=(10, 6),
+                            label_mode='end',
+                            show_y_axis=True,
+                            ax=ax
+                        )
+                        st.pyplot(fig)
+                        plt.close()
+                    else:
+                        st.info("Dados insuficientes para análise por região")
                 except Exception as e:
-                    st.warning(f"⚠️ Dados insuficientes para análise por região")
+                    st.warning(f"⚠️ Erro ao gerar gráfico: {str(e)}")
         else:
             st.info("Dados de ano de cadastro não disponíveis para análise temporal.")
 
@@ -1120,7 +1587,7 @@ with st.expander("Diagnóstico de Similaridade Espacial", expanded=True):
             
             # Estilizar os percentuais para centralizar melhor
             for autotext in autotexts:
-                autotext.set_color('white')
+                autotext.set_color('black')
                 autotext.set_fontsize(11)
                 autotext.set_weight('bold')
                 autotext.set_horizontalalignment('center')

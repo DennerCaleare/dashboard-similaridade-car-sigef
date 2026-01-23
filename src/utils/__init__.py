@@ -195,11 +195,10 @@ def _get_connection():
                     END as label_cpf,
                     YEAR(TRY_CAST(data_cadastro_imovel AS DATE)) as ano_cadastro,
                     CASE
-                        WHEN indice_jaccard >= 0 AND indice_jaccard < 0.20 THEN '0-20%'
-                        WHEN indice_jaccard >= 0.20 AND indice_jaccard < 0.40 THEN '20-40%'
-                        WHEN indice_jaccard >= 0.40 AND indice_jaccard < 0.60 THEN '40-60%'
-                        WHEN indice_jaccard >= 0.60 AND indice_jaccard < 0.80 THEN '60-80%'
-                        WHEN indice_jaccard >= 0.80 AND indice_jaccard <= 1.00 THEN '80-100%'
+                        WHEN indice_jaccard >= 0 AND indice_jaccard < 0.25 THEN '0-25%'
+                        WHEN indice_jaccard >= 0.25 AND indice_jaccard < 0.50 THEN '25-50%'
+                        WHEN indice_jaccard >= 0.50 AND indice_jaccard < 0.85 THEN '50-85%'
+                        WHEN indice_jaccard >= 0.85 AND indice_jaccard <= 1.00 THEN '85-100%'
                         ELSE NULL
                     END as faixa_jaccard,
                     ((area_sicar_ha - area_sigef_agregado_ha) / NULLIF(area_sigef_agregado_ha, 0)) * 100 as descrepancia

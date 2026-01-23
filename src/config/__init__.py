@@ -103,18 +103,17 @@ CSS_CUSTOM = """
 # Cores para faixas de índice Jaccard (similaridade)
 # Gradiente suavizado do vermelho (baixa) ao verde (alta similaridade)
 CORES_FAIXA_JACCARD = {
-    "0-20%": "#e57373",      # Vermelho suave
-    "20-40%": "#ffb74d",     # Laranja suave
-    "40-60%": "#fff176",     # Amarelo suave
-    "60-80%": "#81d4fa",     # Azul claro suave
-    "80-100%": "#81c784"     # Verde suave
+    "0-25%": "#FF9D89",      # Vermelho claro
+    "25-50%": "#FFE48F",     # Amarelo
+    "50-85%": "#E5FF89",     # Verde claro amarelado
+    "85-100%": "#B6E4B0"     # Verde suave
 }
 
-# Cores para tamanhos de imóvel
+# Cores para tamanhos de imóvel (conforme notebook)
 CORES_TAMANHO = {
-    "Pequeno": "#64b5f6",    # Azul suave
-    "Médio": "#ffb74d",      # Laranja suave
-    "Grande": "#81c784"      # Verde suave
+    "Pequeno": "#2980b9",    # Azul vibrante
+    "Médio": "#8e44ad",      # Roxo
+    "Grande": "#2c3e50"      # Azul escuro
 }
 
 # Cores para status do imóvel
@@ -128,23 +127,23 @@ CORES_STATUS = {
 # Cores para titularidade (mesmo titular ou diferente)
 CORES_TITULARIDADE = {
     "Diferente": "#e57373",  # Vermelho suave (CPF diferente = problema)
-    "Igual": "#81c784"       # Verde suave (CPF igual = bom)
+    "Igual": "#a5d6a7"       # Verde mais claro (CPF igual = bom)
 }
 
-# Cores para evolução temporal por tamanho
+# Cores para evolução temporal por tamanho (conforme notebook)
 CORES_EVOLUCAO_TAMANHO = {
-    "Pequeno": "#64b5f6",    # Azul suave
-    "Médio": "#ffb74d",      # Laranja suave
-    "Grande": "#81c784"      # Verde suave
+    "Pequeno": "#2980b9",    # Azul vibrante
+    "Médio": "#8e44ad",      # Roxo
+    "Grande": "#2c3e50"      # Azul escuro
 }
 
-# Cores para evolução temporal por região
+# Cores para evolução temporal por região (conforme notebook)
 CORES_EVOLUCAO_REGIAO = {
-    "norte": "#64b5f6",         # Azul suave
-    "nordeste": "#ffb74d",      # Laranja suave
-    "centro_oeste": "#81c784",  # Verde suave
-    "sudeste": "#e57373",       # Vermelho suave
-    "sul": "#ba68c8"            # Roxo suave
+    "norte": "#27ae60",         # Verde
+    "nordeste": "#2980b9",      # Azul vibrante
+    "centro_oeste": "#2c3e50",  # Azul escuro
+    "sudeste": "#e67e22",       # Laranja
+    "sul": "#8e44ad"            # Roxo
 }
 
 # Cores para matriz de maturidade por região
@@ -170,7 +169,7 @@ REGIOES_NOME_MAP = {
 # ═══════════════════════════════════════════════════════════
 
 # Labels ordenadas para faixas de Jaccard
-JACCARD_LABELS = ["0-20%", "20-40%", "40-60%", "60-80%", "80-100%"]
+JACCARD_LABELS = ["0-25%", "25-50%", "50-85%", "85-100%"]
 
 # Labels para códigos de status
 LABELS_STATUS = {
