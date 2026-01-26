@@ -15,6 +15,7 @@ Características principais:
 Desenvolvido para: Ministério da Gestão e Inovação (MGI)
 Autor: Denner Caleare
 Data: Janeiro 2026
+Última atualização: 26/01/2026
 """
 
 # ═══════════════════════════════════════════════════════════
@@ -1159,7 +1160,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                             )
                             render_matplotlib(use_container_width=True)
                         else:
-                            st.info("Sem dados para panorama regional.")
+                            st.info("⚠️ Dados insuficientes para o gráfico regional.")
                 else:
                     # Sem gráfico regional: gráfico de barras ocupa largura total
                     zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=CHART_HEIGHTS['bars_compact'])
