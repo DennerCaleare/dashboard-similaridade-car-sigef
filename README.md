@@ -1,5 +1,5 @@
 ---
-title: Dashboard Similaridade CAR-SIGEF
+title: Dashboard MGI - Similaridade CAR-SIGEF
 colorFrom: green
 colorTo: blue
 sdk: streamlit
