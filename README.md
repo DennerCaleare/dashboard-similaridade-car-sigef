@@ -3,7 +3,7 @@ title: Dashboard Similaridade CAR-SIGEF
 colorFrom: green
 colorTo: blue
 sdk: streamlit
-sdk_version: 1.31.0
+sdk_version: 1.49.1
 app_file: app.py
 pinned: false
 license: mit
