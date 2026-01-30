@@ -73,7 +73,11 @@ CSS_CUSTOM = """
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
-    /* Limitar altura dos filtros multiselect */
+    /* ========================================
+       MULTISELECT - Melhorias de UX
+       ======================================== */
+    
+    /* Limitar altura do dropdown de opções */
     div[data-baseweb="select"] > div {
         max-height: 120px !important;
         overflow-y: auto !important;
@@ -93,11 +97,49 @@ CSS_CUSTOM = """
         min-height: 38px !important;
     }
     
-    /* Container das tags selecionadas em linha horizontal */
+    /* Container das tags selecionadas - ÁREA ROLÁVEL com botão fixo */
     div[data-baseweb="select"] > div:first-child {
+        display: flex !important;
+        flex-wrap: nowrap !important;  /* Não quebrar linha */
+        align-items: center !important;
+        gap: 4px !important;
+    }
+    
+    /* Container interno das tags - SCROLLABLE */
+    div[data-baseweb="select"] > div:first-child > div:first-child {
+        display: flex !important;
         flex-wrap: wrap !important;
         max-height: 80px !important;
         overflow-y: auto !important;
+        overflow-x: hidden !important;
+        flex: 1 !important;
+        padding-right: 8px !important;
+    }
+    
+    /* Botão CLEAR ALL (X) - SEMPRE FIXO À DIREITA */
+    div[data-baseweb="select"] > div:first-child > div[role="button"] {
+        position: sticky !important;
+        right: 0 !important;
+        flex-shrink: 0 !important;
+        margin-left: auto !important;
+        background: white !important;
+        padding: 4px !important;
+        border-radius: 4px !important;
+        box-shadow: -2px 0 4px rgba(0,0,0,0.1) !important;
+        z-index: 10 !important;
+    }
+    
+    /* Ícone do botão clear - mais visível */
+    div[data-baseweb="select"] > div:first-child > div[role="button"] svg {
+        width: 20px !important;
+        height: 20px !important;
+        color: #666 !important;
+    }
+    
+    /* Hover effect no botão clear */
+    div[data-baseweb="select"] > div:first-child > div[role="button"]:hover {
+        background: #f0f0f0 !important;
+        box-shadow: -2px 0 6px rgba(0,0,0,0.15) !important;
     }
     
     /* Responsividade */

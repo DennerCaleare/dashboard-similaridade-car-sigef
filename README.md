@@ -8,12 +8,6 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![MGI - Gov](https://img.shields.io/badge/Desenvolvido%20para-MGI%20Federal-green.svg)](#)
 
-## 🚀 Acesso Rápido
-
-**Veja em ação:** [Dashboard Online](https://dashboard-similaridade-car-sigef.streamlit.app/)
-
-**Desenvolvedor:** Denner Caleare | [GitHub](https://github.com/DennerCaleare) | [LinkedIn](https://linkedin.com/in/dennercaleare)
-
 ---
 
 ## 📚 O Desafio

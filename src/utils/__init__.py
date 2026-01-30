@@ -327,60 +327,91 @@ def get_total_cars_by_year(
     tamanhos: Optional[List[str]] = None,
     status: Optional[List[str]] = None
 ) -> pd.DataFrame:
-    """Retorna o total de registros (correspondências CAR-SIGEF) por ano.
+    """Retorna o total de CARs cadastrados por ano (dados reais do banco MGI).
     
-    Como cada registro representa uma correspondência entre CAR e SIGEF,
-    COUNT(*) dá o número total de correspondências encontradas.
-    Esse valor é sempre >= número de CARs únicos (já que um CAR pode ter
-    múltiplas correspondências).
-    
-    Aplica apenas filtros geográficos para mostrar o contexto total.
+    Usa arquivo CSV pré-gerado com dados do banco MGI que contém o total real
+    de CARs cadastrados por estado+ano. Aplica filtros geográficos.
     
     Args:
         regioes: Lista de regiões a filtrar
         ufs: Lista de UFs a filtrar
-        tamanhos: Lista de tamanhos (ignorado para contexto total)
-        status: Lista de status (ignorado para contexto total)
+        tamanhos: Lista de tamanhos (ignorado - dados agregados)
+        status: Lista de status (ignorado - dados agregados)
         
     Returns:
         DataFrame com colunas: ano_cadastro, total_cars
     """
     try:
-        conn = _get_connection()
+        # Tentar carregar dados pré-gerados do banco
+        import os
+        csv_path = Path(__file__).parent.parent.parent / "total_cars_por_ano_estado_banco.csv"
         
-        # Construir WHERE clause - aplicar APENAS filtros geográficos
-        where_clauses = []
+        if csv_path.exists():
+            # Carregar dados do arquivo CSV com dados do banco
+            df_banco = pd.read_csv(csv_path)
+            
+            # Aplicar filtros geográficos
+            df_filtrado = df_banco.copy()
+            
+            # Filtro por UF
+            if ufs and len(ufs) > 0:
+                df_filtrado = df_filtrado[df_filtrado['estado'].isin(ufs)]
+            
+            # Filtro por região (mapear estados para regiões)
+            if regioes and len(regioes) > 0:
+                REGIAO_MAP = {
+                    'norte': ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
+                    'nordeste': ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+                    'centro_oeste': ['DF', 'GO', 'MT', 'MS'],
+                    'sudeste': ['ES', 'MG', 'RJ', 'SP'],
+                    'sul': ['PR', 'RS', 'SC']
+                }
+                estados_da_regiao = []
+                for regiao in regioes:
+                    regiao_key = regiao.lower().replace('-', '_').replace(' ', '_')
+                    if regiao_key in REGIAO_MAP:
+                        estados_da_regiao.extend(REGIAO_MAP[regiao_key])
+                
+                if estados_da_regiao:
+                    df_filtrado = df_filtrado[df_filtrado['estado'].isin(estados_da_regiao)]
+            
+            # Agregar por ano
+            df_resultado = df_filtrado.groupby('ano_cadastro', as_index=False)['total_cars'].sum()
+            return df_resultado
         
-        if regioes and len(regioes) > 0:
-            safe_regioes = [r.replace("'", "''").strip() for r in regioes if r and str(r).strip()]
-            if safe_regioes:
-                regioes_str = "', '".join(safe_regioes)
-                where_clauses.append(f"regiao IN ('{regioes_str}')")
-        
-        if ufs and len(ufs) > 0:
-            safe_ufs = [u.replace("'", "''").strip() for u in ufs if u and str(u).strip()]
-            if safe_ufs:
-                ufs_str = "', '".join(safe_ufs)
-                where_clauses.append(f"estado IN ('{ufs_str}')")
-        
-        # NÃO aplicar filtros de tamanho e status para mostrar o total geral
-        
-        where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-        
-        # Contar total de registros (correspondências) por ano
-        # Isso será sempre >= ao número de CARs com similaridade
-        query = f"""
-            SELECT 
-                ano_cadastro,
-                COUNT(*) as total_cars
-            FROM similaridade
-            WHERE {where_clause} AND ano_cadastro IS NOT NULL
-            GROUP BY ano_cadastro
-            ORDER BY ano_cadastro
-        """
-        
-        df = conn.execute(query).fetchdf()
-        return df
+        else:
+            # Fallback: contar do dataset atual (menos preciso)
+            st.warning("⚠️ Arquivo de dados do banco não encontrado. Usando contagem do dataset.")
+            conn = _get_connection()
+            
+            where_clauses = []
+            
+            if regioes and len(regioes) > 0:
+                safe_regioes = [r.replace("'", "''").strip() for r in regioes if r and str(r).strip()]
+                if safe_regioes:
+                    regioes_str = "', '".join(safe_regioes)
+                    where_clauses.append(f"regiao IN ('{regioes_str}')")
+            
+            if ufs and len(ufs) > 0:
+                safe_ufs = [u.replace("'", "''").strip() for u in ufs if u and str(u).strip()]
+                if safe_ufs:
+                    ufs_str = "', '".join(safe_ufs)
+                    where_clauses.append(f"estado IN ('{ufs_str}')")
+            
+            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+            
+            query = f"""
+                SELECT 
+                    ano_cadastro,
+                    COUNT(*) as total_cars
+                FROM similaridade
+                WHERE {where_clause} AND ano_cadastro IS NOT NULL
+                GROUP BY ano_cadastro
+                ORDER BY ano_cadastro
+            """
+            
+            df = conn.execute(query).fetchdf()
+            return df
         
     except Exception as e:
         st.error(f"Erro ao calcular total de CARs por ano: {str(e)}")
@@ -475,11 +506,48 @@ def get_aggregated_stats(
 # FUNÇÕES DE FILTROS
 # ═══════════════════════════════════════════════════════════
 
-def display_region_filter(regioes: List[str]) -> List[str]:
+def get_regioes_from_ufs(ufs_selecionadas: List[str]) -> List[str]:
+    """Detecta quais regiões estão completas baseado nas UFs selecionadas.
+    
+    Verifica se todas as UFs de uma região foram selecionadas. Se sim,
+    retorna essa região para ser usada em gráficos regionais.
+    
+    Args:
+        ufs_selecionadas: Lista de UFs selecionadas
+        
+    Returns:
+        Lista de regiões completas detectadas (formato técnico)
+    """
+    if not ufs_selecionadas:
+        return []
+    
+    # Mapeamento de regiões para UFs
+    REGIAO_UFS = {
+        'norte': ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
+        'nordeste': ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+        'centro_oeste': ['DF', 'GO', 'MT', 'MS'],
+        'sudeste': ['ES', 'MG', 'RJ', 'SP'],
+        'sul': ['PR', 'RS', 'SC']
+    }
+    
+    regioes_completas = []
+    ufs_set = set(ufs_selecionadas)
+    
+    # Verificar cada região
+    for regiao, ufs_da_regiao in REGIAO_UFS.items():
+        if set(ufs_da_regiao).issubset(ufs_set):
+            # Todas as UFs dessa região estão selecionadas
+            regioes_completas.append(regiao)
+    
+    return regioes_completas
+
+
+def display_region_filter(regioes: List[str], default: List[str] = None) -> List[str]:
     """Exibe filtro de regiões.
     
     Args:
         regioes: Lista de regiões disponíveis (formato técnico)
+        default: Lista de regiões pré-selecionadas (formato técnico)
         
     Returns:
         Lista de regiões selecionadas (formato técnico)
@@ -488,13 +556,18 @@ def display_region_filter(regioes: List[str]) -> List[str]:
         # Converter para nomes amigáveis
         regioes_display = [REGIOES_MAP.get(r, r.title()) for r in regioes if r]
         
+        # Converter default para formato display
+        default_display = None
+        if default:
+            default_display = [REGIOES_MAP.get(r, r.title()) for r in default if r]
+        
         st.markdown("<p style='text-align: center;'>Região</p>", unsafe_allow_html=True)
         selected_display = st.multiselect(
             "Região",
             options=regioes_display,
-            default=None,
+            default=default_display,
             placeholder="Escolha as opções",
-            help="Selecione uma ou mais regiões",
+            help="Selecione uma ou mais regiões (seleção automática ao escolher todas UFs de uma região)",
             label_visibility="collapsed"
         )
         

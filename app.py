@@ -34,6 +34,7 @@ import duckdb
 # Bibliotecas de terceiros - Visualização
 import streamlit as st
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as path_effects
 import seaborn as sns
 import zetta_utils as zt
 import plotly.express as px
@@ -53,7 +54,8 @@ from src.utils import (
     load_metadata, load_filtered_data, get_total_records, get_total_cars_by_year,
     reset_connection, format_number, create_quadrant_background, add_quadrant_labels,
     display_region_filter, display_uf_filter, display_size_filter,
-    display_status_filter, display_filter_summary, get_aggregated_stats
+    display_status_filter, display_filter_summary, get_aggregated_stats,
+    get_regioes_from_ufs
 )
 
 # ═══════════════════════════════════════════════════════════
@@ -338,13 +340,14 @@ def plot_evolucao_combo(
                 for bar, val in zip(bars_total, y_bars_total_vals):
                     height = bar.get_height()
                     label = format_value(val, y2_format)
-                    ax2.annotate(
+                    text = ax2.annotate(
                         label,
                         xy=(bar.get_x() + bar.get_width() / 2, height),
                         xytext=(0, 5),
                         textcoords="offset points",
                         ha='center', va='bottom',
-                        fontsize=8, color='#888888'
+                        fontsize=9, fontweight='bold', color='#666666',
+                        zorder=3
                     )
 
         # BARRA DA FRENTE (PARCIAL)
@@ -365,12 +368,19 @@ def plot_evolucao_combo(
                 label = format_value(val, y2_format)
 
                 if y_bars_total is not None:
-                    ax2.annotate(
+                    # Texto branco com contorno preto para melhor legibilidade
+                    text = ax2.annotate(
                         label,
                         xy=(bar.get_x() + bar.get_width() / 2, height / 2),
                         ha='center', va='center',
-                        fontsize=8, fontweight='bold', color='white'
+                        fontsize=10, fontweight='bold', color='white',
+                        zorder=10
                     )
+                    # Adicionar contorno/sombra ao texto (mais sutil)
+                    text.set_path_effects([
+                        path_effects.Stroke(linewidth=2.5, foreground='black', alpha=0.4),
+                        path_effects.Normal()
+                    ])
                 else:
                     ax2.annotate(
                         label,
@@ -378,7 +388,7 @@ def plot_evolucao_combo(
                         xytext=(0, 5),
                         textcoords="offset points",
                         ha='center', va='bottom',
-                        fontsize=8, color='#888888'
+                        fontsize=9, fontweight='bold', color='#333333'
                     )
 
         # Remover eixos Y (visual)
@@ -598,9 +608,9 @@ def create_brazil_choropleth_map(df, metric='jaccard_medio'):
     # Carregar GeoJSON do Brasil
     geojson = load_brazil_geojson()
     
-    # Calcular similaridade média por UF
+    # Calcular similaridade mediana por UF
     df_ufs = df.groupby('estado').agg({
-        'indice_jaccard': 'mean'
+        'indice_jaccard': 'median'
     }).reset_index()
     df_ufs.columns = ['sigla', 'similaridade']
     df_ufs['similaridade'] = df_ufs['similaridade'] * 100  # Converter para percentual
@@ -821,7 +831,7 @@ def get_layout_columns(mobile_cols: int = 2, desktop_cols: int = 4) -> int:
 
 st.set_page_config(
     page_title="Dashboard Similaridade CAR-SIGEF",
-    page_icon="🌳",
+    page_icon="assets/Logo.png",
     layout="wide",
     initial_sidebar_state="collapsed",
     menu_items=None
@@ -894,17 +904,23 @@ st.markdown("<h3 style='text-align: center;'>Filtros de Dados</h3>", unsafe_allo
 with st.spinner('Carregando metadados...'):
     metadata = load_metadata()
 
+# Inicializar session state
+if 'regioes_auto_selecionadas' not in st.session_state:
+    st.session_state.regioes_auto_selecionadas = []
+
 # Usar form para evitar reruns a cada mudança de filtro
 with st.form(key="filtros_form"):
     col1, col2, col3, col4 = st.columns(4)
 
-    with col1:
-        regioes_originais = sorted([r for r in metadata['regioes'] if r is not None]) if metadata['regioes'] else []
-        regioes_selecionadas = display_region_filter(regioes_originais)
-
     with col2:
         ufs_originais = sorted([u for u in metadata['estados'] if u is not None]) if metadata['estados'] else []
         ufs_selecionadas = display_uf_filter(ufs_originais)
+
+    with col1:
+        regioes_originais = sorted([r for r in metadata['regioes'] if r is not None]) if metadata['regioes'] else []
+        # Detectar regiões completas e usar como default
+        regioes_detectadas = get_regioes_from_ufs(ufs_selecionadas) if ufs_selecionadas else []
+        regioes_selecionadas = display_region_filter(regioes_originais, default=regioes_detectadas)
 
     with col3:
         tamanhos_disponiveis = sorted([t for t in metadata['tamanhos'] if t is not None]) if metadata['tamanhos'] else []
@@ -942,9 +958,6 @@ if (submit_button and filters_changed) or st.session_state.df_cached is None:
         if valid_ufs:
             # Se UFs específicas foram selecionadas, ignorar filtro de região
             regioes_para_filtro = None
-            if valid_regioes:
-                # Mostrar aviso informativo que região está sendo ignorada
-                st.info('ℹ️ **Filtro de Região ignorado**: Você selecionou UFs específicas. Para usar o filtro de Região, desmarque todas as UFs.')
         else:
             # Se nenhuma UF selecionada, usar filtro de região normalmente
             regioes_para_filtro = valid_regioes if valid_regioes else None
@@ -996,8 +1009,13 @@ if need_region_data:
         status_regional = st.empty()
         try:
             status_regional.info('🔄 Carregando panorama regional...')
+            
+            # Detectar regiões completas se houver filtro de UF
+            regioes_completas = get_regioes_from_ufs(valid_ufs) if valid_ufs else []
+            regioes_para_panorama = valid_regioes if valid_regioes else (regioes_completas if regioes_completas else None)
+            
             df_regiao = load_filtered_data(
-                regioes=regioes_selecionadas if regioes_selecionadas else None,
+                regioes=regioes_para_panorama,
                 ufs=None,  # Sem filtro de UF para panorama completo
                 tamanhos=tamanhos_selecionados if tamanhos_selecionados else None,
                 status=status_selecionados if status_selecionados else None
@@ -1158,12 +1176,22 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
 
             # Só mostrar gráficos de UF se houver mais de 1 UF
             if num_ufs > 1:
-                # Verificar se deve mostrar gráfico regional (só quando não há filtro de UF)
-                mostrar_grafico_regional = len(ufs_selecionadas) == 0
+                # Verificar se deve mostrar gráfico regional
+                # Mostra se: (1) não há filtro de UF OU (2) todas UFs de uma região foram selecionadas
+                regioes_completas_detectadas = get_regioes_from_ufs(ufs_selecionadas) if ufs_selecionadas else []
+                mostrar_grafico_regional = len(ufs_selecionadas) == 0 or len(regioes_completas_detectadas) > 0
                 
                 # Calcular altura dinamicamente baseado no número de UFs
                 num_ufs_grafico = df_filtrado['estado'].nunique()
                 height_bar = max(1.5, min(6, num_ufs_grafico * 0.3))
+                
+                # Ajustar largura baseado no número de UFs (menos UFs = gráfico mais estreito)
+                if num_ufs_grafico <= 3:
+                    width_bar = 8
+                elif num_ufs_grafico <= 5:
+                    width_bar = 10
+                else:
+                    width_bar = 12
                 
                 if mostrar_grafico_regional:
                     # Com gráfico regional: usar 2 colunas
@@ -1171,7 +1199,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                     
                     with col1:
                         # Altura dinâmica para evitar barras muito grandes com poucas UFs
-                        zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=(12, height_bar))
+                        zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=(width_bar, height_bar))
                         # Tamanho da fonte responsivo baseado no número de UFs
                         ax = plt.gca()
                         # Quando poucas UFs: fonte maior (10-12), quando muitas: fonte menor (6-7)
@@ -1186,6 +1214,9 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                         for text in ax.texts:
                             text.set_fontsize(fontsize)
                             text.set_weight('bold')
+                        # Centralizar gráfico quando houver poucas UFs
+                        if num_ufs_grafico <= 5:
+                            plt.tight_layout()
                         render_matplotlib(use_container_width=True)
                 
                     with col2:
@@ -1216,7 +1247,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                             st.info("⚠️ Dados insuficientes para o gráfico regional.")
                 else:
                     # Sem gráfico regional: gráfico de barras ocupa largura total
-                    zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=(12, height_bar))
+                    zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=(width_bar, height_bar))
                     # Tamanho da fonte responsivo baseado no número de UFs
                     ax = plt.gca()
                     if num_ufs_grafico <= 5:
@@ -1230,14 +1261,17 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                     for text in ax.texts:
                         text.set_fontsize(fontsize)
                         text.set_weight('bold')
-                    render_matplotlib()
+                    # Centralizar gráfico quando houver poucas UFs
+                    if num_ufs_grafico <= 5:
+                        plt.tight_layout()
+                    render_matplotlib(use_container_width=True)
             # Se apenas 1 UF: não mostrar gráfico de barras por UF
 
         st.markdown("---")
 
         # Ajustar altura dinamicamente baseado no número de UFs
         num_ufs_total = df_filtrado['estado'].nunique()
-        height_estado = max(1.2, min(4.5, num_ufs_total * 0.25))
+        height_estado = max(1.5, min(5.5, num_ufs_total * 0.35))
         zt.stacked_bar_plot(
             df_filtrado, y="estado", hue="faixa_jaccard",
             order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
@@ -1250,7 +1284,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
 
         st.markdown("<h3 style='text-align: center;'>Titularidade por UF</h3>", unsafe_allow_html=True)
         # Ajustar altura baseado no número de UFs
-        height_titularidade = max(1.2, min(4.5, num_ufs_total * 0.25))
+        height_titularidade = max(1.5, min(5.5, num_ufs_total * 0.35))
         zt.stacked_bar_plot(
             df_filtrado, y="estado", hue="label_cpf",
             order_hue=["Diferente", "Igual"], palette=CORES_TITULARIDADE,
@@ -1470,6 +1504,24 @@ with st.expander("Evolução Temporal", expanded=True):
                 st.markdown("<h3 style='text-align: center;'>Evolução da Similaridade Mediana por Ano</h3>", unsafe_allow_html=True)
                 
                 try:
+                    # Calcular largura das barras baseado no número de anos
+                    num_anos = len(df_bars)
+                    if num_anos <= 5:
+                        bar_width = 0.7  # Barras mais largas quando há poucos anos
+                    elif num_anos <= 8:
+                        bar_width = 0.65
+                    else:
+                        bar_width = 0.6  # Barras padrão
+                    
+                    # Calcular ylim dinâmico baseado nos dados reais
+                    if has_total_data:
+                        max_total = df_bars['total_total'].max()
+                        # Adicionar 30% de margem, mas garantir que barras pequenas sejam visíveis
+                        ylim_max = max_total * 1.3
+                    else:
+                        max_simi = df_bars['total_simi'].max()
+                        ylim_max = max_simi * 1.3
+                    
                     fig, ax = plt.subplots(figsize=(11, 7))
                     plot_evolucao_combo(
                         df=df_ano_sim,
@@ -1483,6 +1535,7 @@ with st.expander("Evolução Temporal", expanded=True):
                         color_line='#2563eb',
                         color_bars='#2563eb',
                         color_bars_total='#cccccc',
+                        bar_width=bar_width,
                         bar_alpha=0.8,
                         bar_total_alpha=0.3,
                         label_mode='all',
@@ -1495,7 +1548,7 @@ with st.expander("Evolução Temporal", expanded=True):
                         legend_bar_total_label='N° de CARs Cadastrados' if has_total_data else '',
                         figsize=(11, 7),
                         ylim_line=(61, 100),
-                        ylim_bars=(0, 1250000) if has_total_data else None,
+                        ylim_bars=(0, ylim_max),
                         ax=ax
                     )
                     st.pyplot(fig)
