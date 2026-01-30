@@ -321,6 +321,72 @@ def get_total_records() -> int:
         return 0
 
 
+def get_total_cars_by_year(
+    regioes: Optional[List[str]] = None,
+    ufs: Optional[List[str]] = None,
+    tamanhos: Optional[List[str]] = None,
+    status: Optional[List[str]] = None
+) -> pd.DataFrame:
+    """Retorna o total de registros (correspondências CAR-SIGEF) por ano.
+    
+    Como cada registro representa uma correspondência entre CAR e SIGEF,
+    COUNT(*) dá o número total de correspondências encontradas.
+    Esse valor é sempre >= número de CARs únicos (já que um CAR pode ter
+    múltiplas correspondências).
+    
+    Aplica apenas filtros geográficos para mostrar o contexto total.
+    
+    Args:
+        regioes: Lista de regiões a filtrar
+        ufs: Lista de UFs a filtrar
+        tamanhos: Lista de tamanhos (ignorado para contexto total)
+        status: Lista de status (ignorado para contexto total)
+        
+    Returns:
+        DataFrame com colunas: ano_cadastro, total_cars
+    """
+    try:
+        conn = _get_connection()
+        
+        # Construir WHERE clause - aplicar APENAS filtros geográficos
+        where_clauses = []
+        
+        if regioes and len(regioes) > 0:
+            safe_regioes = [r.replace("'", "''").strip() for r in regioes if r and str(r).strip()]
+            if safe_regioes:
+                regioes_str = "', '".join(safe_regioes)
+                where_clauses.append(f"regiao IN ('{regioes_str}')")
+        
+        if ufs and len(ufs) > 0:
+            safe_ufs = [u.replace("'", "''").strip() for u in ufs if u and str(u).strip()]
+            if safe_ufs:
+                ufs_str = "', '".join(safe_ufs)
+                where_clauses.append(f"estado IN ('{ufs_str}')")
+        
+        # NÃO aplicar filtros de tamanho e status para mostrar o total geral
+        
+        where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+        
+        # Contar total de registros (correspondências) por ano
+        # Isso será sempre >= ao número de CARs com similaridade
+        query = f"""
+            SELECT 
+                ano_cadastro,
+                COUNT(*) as total_cars
+            FROM similaridade
+            WHERE {where_clause} AND ano_cadastro IS NOT NULL
+            GROUP BY ano_cadastro
+            ORDER BY ano_cadastro
+        """
+        
+        df = conn.execute(query).fetchdf()
+        return df
+        
+    except Exception as e:
+        st.error(f"Erro ao calcular total de CARs por ano: {str(e)}")
+        return pd.DataFrame(columns=['ano_cadastro', 'total_cars'])
+
+
 def get_aggregated_stats(
     regioes: Optional[List[str]] = None,
     ufs: Optional[List[str]] = None,
@@ -375,7 +441,9 @@ def get_aggregated_stats(
                 COUNT(*) as total_records,
                 AVG(indice_jaccard) as avg_jaccard,
                 MEDIAN(indice_jaccard) as median_jaccard,
-                COUNT(DISTINCT estado) as num_ufs
+                COUNT(DISTINCT estado) as num_ufs,
+                SUM(area_sicar_ha) as total_area,
+                AVG(cpf_ok) as avg_cpf_ok
             FROM similaridade
             WHERE {where_clause}
         """
@@ -386,7 +454,9 @@ def get_aggregated_stats(
             'total_records': int(result[0]) if result[0] else 0,
             'avg_jaccard': float(result[1] * 100) if result[1] is not None else 0.0,
             'median_jaccard': float(result[2] * 100) if result[2] is not None else 0.0,
-            'num_ufs': int(result[3]) if result[3] else 0
+            'num_ufs': int(result[3]) if result[3] else 0,
+            'total_area': float(result[4]) if result[4] is not None else 0.0,
+            'avg_cpf_ok': float(result[5] * 100) if result[5] is not None else 0.0
         }
         
     except Exception as e:
@@ -395,7 +465,9 @@ def get_aggregated_stats(
             'total_records': 0,
             'avg_jaccard': 0.0,
             'median_jaccard': 0.0,
-            'num_ufs': 0
+            'num_ufs': 0,
+            'total_area': 0.0,
+            'avg_cpf_ok': 0.0
         }
 
 
@@ -460,7 +532,8 @@ def display_uf_filter(ufs: List[str]) -> List[str]:
             default=None,
             placeholder="Escolha as opções",
             help="Selecione uma ou mais UFs",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            max_selections=None
         )
         
         # Converter de volta para formato técnico com segurança

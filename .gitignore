@@ -44,8 +44,6 @@ env/
 .ipynb_checkpoints
 *.ipynb_checkpoints/
 .jupyter/
-# Notebooks de desenvolvimento (manter apenas em local)
-eda_similaridade_car_sigef.ipynb
 
 # ═══════════════════════════════════════════════════════════
 # Environment Variables
@@ -92,4 +90,10 @@ desktop.ini
 *.temp
 *.bak
 *.backup
-test_unzip.py
+*_backup.csv
+test_*.py
+fix_*.py
+INSTRUCOES_*.md
+CHECKLIST*.md
+deploy*.ps1
+DEPLOY*.md

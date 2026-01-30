@@ -79,9 +79,25 @@ CSS_CUSTOM = """
         overflow-y: auto !important;
     }
     
-    /* Estilizar o container de tags selecionadas */
+    /* Estilizar o container de tags selecionadas - Layout horizontal compacto */
     .stMultiSelect [data-baseweb="tag"] {
-        margin: 2px;
+        margin: 2px !important;
+        font-size: 0.8rem !important;
+        padding: 2px 8px !important;
+        height: auto !important;
+        min-height: 24px !important;
+    }
+    
+    /* Compactar o input do multiselect */
+    div[data-baseweb="select"] {
+        min-height: 38px !important;
+    }
+    
+    /* Container das tags selecionadas em linha horizontal */
+    div[data-baseweb="select"] > div:first-child {
+        flex-wrap: wrap !important;
+        max-height: 80px !important;
+        overflow-y: auto !important;
     }
     
     /* Responsividade */
