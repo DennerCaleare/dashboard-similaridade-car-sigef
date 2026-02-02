@@ -367,6 +367,7 @@ def get_total_records() -> int:
 def get_total_cars_by_year(
     regioes: Optional[List[str]] = None,
     ufs: Optional[List[str]] = None,
+    municipios: Optional[List[str]] = None,
     tamanhos: Optional[List[str]] = None,
     status: Optional[List[str]] = None
 ) -> pd.DataFrame:
@@ -379,6 +380,7 @@ def get_total_cars_by_year(
     Args:
         regioes: Lista de regiões a filtrar
         ufs: Lista de UFs a filtrar
+        municipios: Lista de municípios a filtrar
         tamanhos: Lista de tamanhos (ignorado - dados agregados)
         status: Lista de status (ignorado - dados agregados)
         
@@ -402,6 +404,21 @@ def get_total_cars_by_year(
             if safe_ufs:
                 ufs_str = "', '".join(safe_ufs)
                 where_clauses.append(f"estado IN ('{ufs_str}')")
+        
+        if municipios and len(municipios) > 0:
+            mun_conditions = []
+            for mun in municipios:
+                if mun and str(mun).strip():
+                    if ' - ' in mun:
+                        nome, uf = mun.rsplit(' - ', 1)
+                        nome_safe = nome.strip().replace("'", "''")
+                        uf_safe = uf.strip().replace("'", "''")
+                        mun_conditions.append(f"(municipio_nome = '{nome_safe}' AND estado = '{uf_safe}')")
+                    else:
+                        nome_safe = mun.strip().replace("'", "''")
+                        mun_conditions.append(f"municipio_nome = '{nome_safe}'")
+            if mun_conditions:
+                where_clauses.append(f"({' OR '.join(mun_conditions)})")
         
         where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
         
@@ -435,6 +452,7 @@ def get_total_cars_by_year(
 def get_aggregated_stats(
     regioes: Optional[List[str]] = None,
     ufs: Optional[List[str]] = None,
+    municipios: Optional[List[str]] = None,
     tamanhos: Optional[List[str]] = None,
     status: Optional[List[str]] = None
 ) -> Dict[str, Any]:
@@ -443,6 +461,7 @@ def get_aggregated_stats(
     Args:
         regioes: Lista de regiões a filtrar
         ufs: Lista de UFs a filtrar
+        municipios: Lista de municípios a filtrar
         tamanhos: Lista de tamanhos a filtrar
         status: Lista de status a filtrar
         
@@ -466,6 +485,21 @@ def get_aggregated_stats(
             if safe_ufs:
                 ufs_str = "', '".join(safe_ufs)
                 where_clauses.append(f"estado IN ('{ufs_str}')")
+        
+        if municipios and len(municipios) > 0:
+            mun_conditions = []
+            for mun in municipios:
+                if mun and str(mun).strip():
+                    if ' - ' in mun:
+                        nome, uf = mun.rsplit(' - ', 1)
+                        nome_safe = nome.strip().replace("'", "''")
+                        uf_safe = uf.strip().replace("'", "''")
+                        mun_conditions.append(f"(municipio_nome = '{nome_safe}' AND estado = '{uf_safe}')")
+                    else:
+                        nome_safe = mun.strip().replace("'", "''")
+                        mun_conditions.append(f"municipio_nome = '{nome_safe}'")
+            if mun_conditions:
+                where_clauses.append(f"({' OR '.join(mun_conditions)})")
         
         if tamanhos and len(tamanhos) > 0:
             safe_tamanhos = [t.replace("'", "''").strip() for t in tamanhos if t and str(t).strip()]

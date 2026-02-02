@@ -1071,6 +1071,7 @@ with st.container():
     stats = get_aggregated_stats(
         regioes=regioes_selecionadas if regioes_selecionadas else None,
         ufs=ufs_selecionadas if ufs_selecionadas else None,
+        municipios=municipios_selecionados if municipios_selecionados else None,
         tamanhos=tamanhos_selecionados if tamanhos_selecionados else None,
         status=status_selecionados if status_selecionados else None
     )
@@ -1156,25 +1157,27 @@ st.markdown("---")
 # MAPA DO BRASIL - SIMILARIDADE POR UF
 # ═══════════════════════════════════════════════════════════
 
-with st.expander("Mapa de Similaridade por Estado", expanded=True):
-    if not validate_data(df_filtrado, "Mapa de Similaridade", min_records=1):
-        pass
-    else:
-        try:
-            # Dois mapas lado a lado
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                fig_mapa = create_brazil_choropleth_map(df_filtrado)
-                st.plotly_chart(fig_mapa, use_container_width=True)
-            
-            with col2:
-                fig_titularidade = create_brazil_titularidade_map(df_filtrado)
-                st.plotly_chart(fig_titularidade, use_container_width=True)
+# Ocultar mapas se há filtro de município
+if not (municipios_selecionados and len(municipios_selecionados) > 0):
+    with st.expander("Mapa de Similaridade por Estado", expanded=True):
+        if not validate_data(df_filtrado, "Mapa de Similaridade", min_records=1):
+            pass
+        else:
+            try:
+                # Dois mapas lado a lado
+                col1, col2 = st.columns(2)
                 
-        except Exception as e:
-            st.error(f"❌ Erro ao criar mapa: {str(e)}")
-            st.info("💡 Verifique se há dados suficientes para todos os estados.")
+                with col1:
+                    fig_mapa = create_brazil_choropleth_map(df_filtrado)
+                    st.plotly_chart(fig_mapa, use_container_width=True)
+                
+                with col2:
+                    fig_titularidade = create_brazil_titularidade_map(df_filtrado)
+                    st.plotly_chart(fig_titularidade, use_container_width=True)
+                    
+            except Exception as e:
+                st.error(f"❌ Erro ao criar mapa: {str(e)}")
+                st.info("💡 Verifique se há dados suficientes para todos os estados.")
 
 st.markdown("---")
 
@@ -1534,6 +1537,7 @@ with st.expander("Evolução Temporal", expanded=True):
             df_total_por_ano = get_total_cars_by_year(
                 regioes=regioes_para_filtro,
                 ufs=valid_ufs if valid_ufs else None,
+                municipios=valid_municipios if valid_municipios else None,
                 tamanhos=valid_tamanhos if valid_tamanhos else None,
                 status=valid_status if valid_status else None
             )
