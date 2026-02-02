@@ -40,6 +40,7 @@ import matplotlib.patheffects as path_effects
 import seaborn as sns
 import zetta_utils as zt
 import plotly.express as px
+import plotly.graph_objects as go
 import json
 
 # Imports locais - Configurações
@@ -585,6 +586,185 @@ def load_brazil_geojson():
     with urllib.request.urlopen(url) as response:
         return json.loads(response.read().decode('utf-8'))
 
+@st.cache_data(ttl=3600)
+def load_brazil_municipios_geojson():
+    """Carrega GeoJSON simplificado dos municípios brasileiros.
+    
+    Returns:
+        dict com GeoJSON dos municípios
+    """
+    import urllib.request
+    # URL do GeoJSON simplificado de municípios do Brasil (IBGE)
+    # Usando versão simplificada para performance
+    url = "https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-100-mun.json"
+    try:
+        with urllib.request.urlopen(url) as response:
+            return json.loads(response.read().decode('utf-8'))
+    except Exception as e:
+        st.warning(f"⚠️ Não foi possível carregar o mapa de municípios: {str(e)}")
+        return None
+
+def create_municipios_map(df, municipios_selecionados):
+    """Cria mapa dos municípios selecionados - mesmo estilo do mapa de estados.
+    
+    Args:
+        df: DataFrame com dados filtrados por município
+        municipios_selecionados: Lista de municípios selecionados
+        
+    Returns:
+        Figura plotly com o mapa de municípios
+    """
+    # Carregar GeoJSON de municípios
+    geojson = load_brazil_municipios_geojson()
+    if geojson is None:
+        return None
+    
+    # Calcular estatísticas por município
+    df_mun = df.groupby('municipio_nome').agg({
+        'indice_jaccard': 'median',
+        'idt_municipio': 'first'
+    }).reset_index()
+    df_mun.columns = ['municipio', 'similaridade', 'cod_municipio']
+    df_mun['similaridade'] = df_mun['similaridade'] * 100
+    df_mun['cod_municipio'] = df_mun['cod_municipio'].astype(str)
+    
+    # Criar mapa com Plotly (mesmo estilo do mapa de estados)
+    fig = px.choropleth(
+        df_mun,
+        geojson=geojson,
+        locations='cod_municipio',
+        featureidkey='properties.id',
+        color='similaridade',
+        color_continuous_scale=['#e57373', '#ffb74d', '#fff176', '#aed581', '#81c784'],
+        range_color=[0, 100],
+        labels={'similaridade': 'Similaridade', 'municipio': 'Município'},
+        hover_data={'cod_municipio': False, 'similaridade': ':.1f', 'municipio': True},
+        custom_data=['municipio', 'similaridade']
+    )
+    
+    # Personalizar o hover template
+    fig.update_traces(
+        hovertemplate='<b>%{customdata[0]}</b><br>Similaridade = %{customdata[1]:.1f} %<extra></extra>',
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=14,
+            font_family="Arial",
+            font_color="#333333"
+        )
+    )
+    
+    fig.update_geos(
+        fitbounds="locations",
+        visible=False,
+        showcountries=False,
+        showcoastlines=False,
+        showland=False,
+        showocean=False,
+        showlakes=False,
+        showrivers=False,
+        projection_type="mercator"
+    )
+    
+    fig.update_layout(
+        title={'text': 'Similaridade por Município', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 14}},
+        margin=dict(l=0, r=0, t=40, b=80),
+        height=700,
+        coloraxis_colorbar=dict(
+            title=None,
+            tickfont=dict(size=10, color='#1D1D1D'),
+            orientation='h',
+            len=0.35,
+            thickness=15,
+            x=0.5,
+            xanchor='center',
+            y=-0.08,
+            yanchor='top'
+        )
+    )
+    
+    return fig
+
+def create_municipios_titularidade_map(df, municipios_selecionados):
+    """Cria mapa de titularidade dos municípios - mesmo estilo do mapa de estados.
+    
+    Args:
+        df: DataFrame com dados filtrados por município
+        municipios_selecionados: Lista de municípios selecionados
+        
+    Returns:
+        Figura plotly com o mapa de titularidade por município
+    """
+    # Carregar GeoJSON de municípios
+    geojson = load_brazil_municipios_geojson()
+    if geojson is None:
+        return None
+    
+    # Calcular estatísticas por município
+    df_mun = df.groupby('municipio_nome').agg({
+        'cpf_ok': 'mean',
+        'idt_municipio': 'first'
+    }).reset_index()
+    df_mun.columns = ['municipio', 'cpf_igual', 'cod_municipio']
+    df_mun['cpf_igual'] = df_mun['cpf_igual'] * 100
+    df_mun['cod_municipio'] = df_mun['cod_municipio'].astype(str)
+    
+    # Criar mapa com Plotly (mesmo estilo do mapa de estados)
+    fig = px.choropleth(
+        df_mun,
+        geojson=geojson,
+        locations='cod_municipio',
+        featureidkey='properties.id',
+        color='cpf_igual',
+        color_continuous_scale=['#e57373', '#ffb74d', '#fff176', '#aed581', '#81c784'],
+        range_color=[0, 100],
+        labels={'cpf_igual': 'CPF Igual', 'municipio': 'Município'},
+        hover_data={'cod_municipio': False, 'cpf_igual': ':.1f', 'municipio': True},
+        custom_data=['municipio', 'cpf_igual']
+    )
+    
+    # Personalizar o hover template
+    fig.update_traces(
+        hovertemplate='<b>%{customdata[0]}</b><br>CPF Igual = %{customdata[1]:.1f} %<extra></extra>',
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=14,
+            font_family="Arial",
+            font_color="#333333"
+        )
+    )
+    
+    fig.update_geos(
+        fitbounds="locations",
+        visible=False,
+        showcountries=False,
+        showcoastlines=False,
+        showland=False,
+        showocean=False,
+        showlakes=False,
+        showrivers=False,
+        projection_type="mercator"
+    )
+    
+    fig.update_layout(
+        title={'text': 'Titularidade por Município', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 14}},
+        margin=dict(l=0, r=0, t=40, b=80),
+        height=700,
+        coloraxis_colorbar=dict(
+            title=None,
+            tickfont=dict(size=10, color='#1D1D1D'),
+            orientation='h',
+            len=0.35,
+            thickness=15,
+            x=0.5,
+            xanchor='center',
+            y=-0.08,
+            yanchor='top'
+        )
+    )
+    
+    return fig
+
+
 def create_brazil_choropleth_map(df, metric='jaccard_medio'):
     """Cria mapa coroplético do Brasil por UF usando Plotly.
     
@@ -652,22 +832,23 @@ def create_brazil_choropleth_map(df, metric='jaccard_medio'):
         showland=False,
         showocean=False,
         showlakes=False,
-        showrivers=False
+        showrivers=False,
+        projection_type="mercator"
     )
     
     fig.update_layout(
-        title={'text': 'Similaridade por Estado', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 10}},
-        margin=dict(l=0, r=0, t=30, b=50),
-        height=450,
+        title={'text': 'Similaridade por Estado', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 14}},
+        margin=dict(l=0, r=0, t=40, b=80),
+        height=700,
         coloraxis_colorbar=dict(
-            title=dict(text="Similaridade (%)", font=dict(size=10, color='#1D1D1D')),
-            tickfont=dict(size=9, color='#1D1D1D'),
+            title=None,
+            tickfont=dict(size=10, color='#1D1D1D'),
             orientation='h',
             len=0.35,
-            thickness=12,
+            thickness=15,
             x=0.5,
             xanchor='center',
-            y=-0.15,
+            y=-0.08,
             yanchor='top'
         )
     )
@@ -766,22 +947,23 @@ def create_brazil_titularidade_map(df):
         showland=False,
         showocean=False,
         showlakes=False,
-        showrivers=False
+        showrivers=False,
+        projection_type="mercator"
     )
     
     fig.update_layout(
-        title={'text': 'Titularidade por Estado', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 10}},
-        margin=dict(l=0, r=0, t=30, b=50),
-        height=450,
+        title={'text': 'Titularidade por Estado', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 14}},
+        margin=dict(l=0, r=0, t=40, b=80),
+        height=700,
         coloraxis_colorbar=dict(
-            title=dict(text="CPF Igual (%)", font=dict(size=10, color='#1D1D1D')),
-            tickfont=dict(size=9, color='#1D1D1D'),
+            title=None,
+            tickfont=dict(size=10, color='#1D1D1D'),
             orientation='h',
             len=0.35,
-            thickness=12,
+            thickness=15,
             x=0.5,
             xanchor='center',
-            y=-0.15,
+            y=-0,
             yanchor='top'
         )
     )
@@ -973,20 +1155,40 @@ if (submit_button and filters_changed) or st.session_state.df_cached is None:
         valid_tamanhos = [t for t in (tamanhos_selecionados or []) if t]
         valid_status = [s for s in (status_selecionados or []) if s]
         
-        # OPÇÃO 1: Priorizar filtro de UF - se UFs selecionadas, ignorar região
-        if valid_ufs:
-            # Se UFs específicas foram selecionadas, ignorar filtro de região
+        # LÓGICA DE PRIORIDADE: Município > UF > Região
+        # Se município selecionado, ignorar UF e Região
+        # Se UF selecionada (sem município), ignorar Região
+        if valid_municipios:
+            # Município tem prioridade máxima - ignorar UF e Região
             regioes_para_filtro = None
+            ufs_para_filtro = None
+            municipios_para_filtro = valid_municipios
+        elif valid_ufs:
+            # UF tem segunda prioridade - ignorar Região
+            regioes_para_filtro = None
+            ufs_para_filtro = valid_ufs
+            municipios_para_filtro = None
         else:
-            # Se nenhuma UF selecionada, usar filtro de região normalmente
+            # Usar filtro de região apenas se não houver UF ou Município
             regioes_para_filtro = valid_regioes if valid_regioes else None
+            ufs_para_filtro = None
+            municipios_para_filtro = None
         
         status_placeholder.info('🔄 Carregando dados filtrados...')
         
+        # Armazenar filtros com prioridade aplicada no session_state
+        st.session_state.filtros_aplicados = {
+            'regioes': regioes_para_filtro,
+            'ufs': ufs_para_filtro,
+            'municipios': municipios_para_filtro,
+            'tamanhos': valid_tamanhos if valid_tamanhos else None,
+            'status': valid_status if valid_status else None
+        }
+        
         df_filtrado = load_filtered_data(
             regioes=regioes_para_filtro,
-            ufs=valid_ufs if valid_ufs else None,
-            municipios=valid_municipios if valid_municipios else None,
+            ufs=ufs_para_filtro,
+            municipios=municipios_para_filtro,
             tamanhos=valid_tamanhos if valid_tamanhos else None,
             status=valid_status if valid_status else None
         )
@@ -1068,12 +1270,14 @@ with st.container():
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     
     # Calcular métricas direto no DuckDB (muito mais rápido que Pandas)
+    # Usar filtros com prioridade aplicada (do session_state)
+    filtros = st.session_state.get('filtros_aplicados', {})
     stats = get_aggregated_stats(
-        regioes=regioes_selecionadas if regioes_selecionadas else None,
-        ufs=ufs_selecionadas if ufs_selecionadas else None,
-        municipios=municipios_selecionados if municipios_selecionados else None,
-        tamanhos=tamanhos_selecionados if tamanhos_selecionados else None,
-        status=status_selecionados if status_selecionados else None
+        regioes=filtros.get('regioes'),
+        ufs=filtros.get('ufs'),
+        municipios=filtros.get('municipios'),
+        tamanhos=filtros.get('tamanhos'),
+        status=filtros.get('status')
     )
     
     st.markdown("""
@@ -1135,11 +1339,22 @@ with st.container():
         """, unsafe_allow_html=True)
     
     with col5:
-        area_milhoes = stats['total_area'] / 1_000_000
+        # Ajustar unidade de área dinamicamente
+        area_total = stats['total_area']
+        if area_total >= 1_000_000:
+            area_display = area_total / 1_000_000
+            unidade = "M ha"
+        elif area_total >= 1_000:
+            area_display = area_total / 1_000
+            unidade = "mil ha"
+        else:
+            area_display = area_total
+            unidade = "ha"
+        
         st.markdown(f"""
             <div class='metric-container'>
-                <div class='metric-label'>Área Total (M ha)</div>
-                <div class='metric-value'>{area_milhoes:.1f}</div>
+                <div class='metric-label'>Área Total ({unidade})</div>
+                <div class='metric-value'>{area_display:.1f}</div>
             </div>
         """, unsafe_allow_html=True)
     
@@ -1154,11 +1369,42 @@ with st.container():
 st.markdown("---")
 
 # ═══════════════════════════════════════════════════════════
-# MAPA DO BRASIL - SIMILARIDADE POR UF
+# MAPA DO BRASIL - SIMILARIDADE POR UF/MUNICÍPIO
 # ═══════════════════════════════════════════════════════════
 
-# Ocultar mapas se há filtro de município
-if not (municipios_selecionados and len(municipios_selecionados) > 0):
+# Exibir mapas apropriados baseado no filtro
+tem_filtro_municipio_mapa = municipios_selecionados and len(municipios_selecionados) > 0
+
+if tem_filtro_municipio_mapa:
+    # Mapas por município
+    with st.expander("Mapa de Similaridade por Município", expanded=True):
+        if not validate_data(df_filtrado, "Mapa de Similaridade", min_records=1):
+            pass
+        else:
+            try:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    with st.spinner("Carregando mapa de similaridade..."):
+                        fig_mapa_mun = create_municipios_map(df_filtrado, municipios_selecionados)
+                        if fig_mapa_mun:
+                            st.plotly_chart(fig_mapa_mun, use_container_width=True)
+                        else:
+                            st.warning("⚠️ Não foi possível carregar o mapa de municípios.")
+                
+                with col2:
+                    with st.spinner("Carregando mapa de titularidade..."):
+                        fig_tit_mun = create_municipios_titularidade_map(df_filtrado, municipios_selecionados)
+                        if fig_tit_mun:
+                            st.plotly_chart(fig_tit_mun, use_container_width=True)
+                        else:
+                            st.warning("⚠️ Não foi possível carregar o mapa de titularidade.")
+                    
+            except Exception as e:
+                st.error(f"❌ Erro ao criar mapa: {str(e)}")
+                st.info("💡 Verifique se há dados suficientes para os municípios selecionados.")
+else:
+    # Mapas por estado (comportamento original)
     with st.expander("Mapa de Similaridade por Estado", expanded=True):
         if not validate_data(df_filtrado, "Mapa de Similaridade", min_records=1):
             pass
@@ -1246,8 +1492,23 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                     col1, col2 = st.columns(2)
                     
                     with col1:
+                        # Preparar dados para o gráfico
+                        df_plot_bar = df_filtrado.copy()
+                        num_areas_real = num_areas_grafico
+                        
+                        # Se município e mais de 20, agrupar em "Outros"
+                        if tem_filtro_municipio and num_areas_grafico > 20:
+                            top_municipios = df_filtrado[coluna_geo].value_counts().head(20).index.tolist()
+                            df_plot_bar[coluna_geo] = df_plot_bar[coluna_geo].apply(
+                                lambda x: x if x in top_municipios else 'Outros'
+                            )
+                            num_areas_real = 21  # 20 + 'Outros'
+                        
+                        # Ajustar altura baseado no número real de áreas
+                        height_bar_ajustado = max(1.5, min(6, num_areas_real * 0.3))
+                        
                         # Altura dinâmica para evitar barras muito grandes
-                        zt.bar_plot(df_filtrado, coluna_geo, percentage=mostrar_porcentagem, figsize=(width_bar, height_bar))
+                        zt.bar_plot(df_plot_bar, coluna_geo, percentage=mostrar_porcentagem, figsize=(width_bar, height_bar_ajustado))
                         # Tamanho da fonte responsivo baseado no número de áreas
                         ax = plt.gca()
                         if num_areas_grafico <= 5:
@@ -1318,9 +1579,20 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
 
         # Ajustar altura dinamicamente baseado no número de áreas
         num_total = df_filtrado[coluna_geo].nunique()
+        
+        # Se município e mais de 20, agrupar em "Outros"
+        df_plot_similaridade = df_filtrado.copy()
+        if tem_filtro_municipio and num_total > 20:
+            # Calcular total de registros por município
+            top_municipios = df_filtrado[coluna_geo].value_counts().head(20).index.tolist()
+            df_plot_similaridade[coluna_geo] = df_plot_similaridade[coluna_geo].apply(
+                lambda x: x if x in top_municipios else 'Outros'
+            )
+            num_total = 21  # 20 + 'Outros'
+        
         height_geo = max(1.5, min(5.5, num_total * 0.35))
         zt.stacked_bar_plot(
-            df_filtrado, y=coluna_geo, hue="faixa_jaccard",
+            df_plot_similaridade, y=coluna_geo, hue="faixa_jaccard",
             order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
             legend_title="Percentual de Similaridade CAR-SIGEF",
             show_pct_symbol=True, figsize=(12, height_geo), legend_cols=5
@@ -1331,10 +1603,22 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
 
         titulo_titularidade = f"Titularidade por {('Município' if tem_filtro_municipio else 'UF')}"
         st.markdown(f"<h3 style='text-align: center;'>{titulo_titularidade}</h3>", unsafe_allow_html=True)
+        
+        # Se município e mais de 20, agrupar em "Outros"
+        df_plot_titularidade = df_filtrado.copy()
+        num_total_tit = df_filtrado[coluna_geo].nunique()
+        if tem_filtro_municipio and num_total_tit > 20:
+            # Usar mesma lista de top municipios para consistência
+            top_municipios = df_filtrado[coluna_geo].value_counts().head(20).index.tolist()
+            df_plot_titularidade[coluna_geo] = df_plot_titularidade[coluna_geo].apply(
+                lambda x: x if x in top_municipios else 'Outros'
+            )
+            num_total_tit = 21  # 20 + 'Outros'
+        
         # Ajustar altura baseado no número de áreas
-        height_titularidade = max(1.5, min(5.5, num_total * 0.35))
+        height_titularidade = max(1.5, min(5.5, num_total_tit * 0.35))
         zt.stacked_bar_plot(
-            df_filtrado, y=coluna_geo, hue="label_cpf",
+            df_plot_titularidade, y=coluna_geo, hue="label_cpf",
             order_hue=["Diferente", "Igual"], palette=CORES_TITULARIDADE,
             legend_title="Titularidade (CPF/CNPJ)",
             show_pct_symbol=True, figsize=(12, height_titularidade)
@@ -1625,8 +1909,8 @@ with st.expander("Evolução Temporal", expanded=True):
         st.markdown("---")
         
         if 'ano_cadastro' in df_filtrado.columns and 'class_tam_imovel' in df_filtrado.columns:
-            # Verificar se alguma UF foi selecionada
-            mostrar_grafico_regiao = not ufs_selecionadas or len(ufs_selecionadas) == 0
+            # Verificar se alguma UF ou Município foi selecionado
+            mostrar_grafico_regiao = (not ufs_selecionadas or len(ufs_selecionadas) == 0) and (not municipios_selecionados or len(municipios_selecionados) == 0)
             
             if mostrar_grafico_regiao:
                 col1, col2 = st.columns(2)
@@ -1993,19 +2277,33 @@ st.markdown("---")
 # MATRIZ DE MATURIDADE FUNDIÁRIA
 # ═══════════════════════════════════════════════════════════
 
-with st.expander("Matriz de Maturidade Fundiária por UF", expanded=True):
+# Determinar se está filtrando por município
+tem_filtro_municipio_matriz = municipios_selecionados and len(municipios_selecionados) > 0
+titulo_matriz = "Matriz de Maturidade Fundiária por Município" if tem_filtro_municipio_matriz else "Matriz de Maturidade Fundiária por UF"
+coluna_geo_matriz = 'municipio_nome' if tem_filtro_municipio_matriz else 'estado'
+
+with st.expander(titulo_matriz, expanded=True):
     if not validate_data(df_filtrado, "Matriz de Maturidade", min_records=1):
         pass  # Mensagem já exibida pela função
     else:
         # Dados já vem tratados do DuckDB com cpf_ok como int (0 ou 1)
-        uf_stats = df_filtrado.groupby('estado').agg(
+        geo_stats = df_filtrado.groupby(coluna_geo_matriz).agg(
             pct_espacial_bom=('indice_jaccard', lambda x: (x >= 0.85).mean() * 100),
             pct_cpf_igual=('cpf_ok', lambda x: x.mean() * 100),
             regiao=('regiao', 'first'),
-            total_cars=('estado', 'count')
+            total_cars=(coluna_geo_matriz, 'count')
         ).reset_index()
+        
+        # Se município, adicionar coluna 'estado' para cores por região
+        if tem_filtro_municipio_matriz:
+            # Obter estado de cada município
+            geo_stats = geo_stats.merge(
+                df_filtrado[[coluna_geo_matriz, 'estado']].drop_duplicates(),
+                on=coluna_geo_matriz,
+                how='left'
+            )
 
-        if len(uf_stats) >= 1:
+        if len(geo_stats) >= 1:
             try:
                 x_min, x_max, y_min, y_max = 25, 75, 25, 75
                 x_div, y_div = 50, 50
@@ -2018,10 +2316,10 @@ with st.expander("Matriz de Maturidade Fundiária por UF", expanded=True):
                 add_quadrant_labels(ax, x_min, x_max, y_min, y_max)
 
                 # Normalizar tamanhos das bolhas
-                sizes = uf_stats['total_cars']
+                sizes = geo_stats['total_cars']
                 size_min, size_max = 100, 800
                 
-                # Evitar divisão por zero quando há apenas 1 UF
+                # Evitar divisão por zero quando há apenas 1 área
                 if sizes.min() == sizes.max():
                     sizes_normalized = pd.Series([size_min] * len(sizes), index=sizes.index)
                 else:
@@ -2029,9 +2327,9 @@ with st.expander("Matriz de Maturidade Fundiária por UF", expanded=True):
 
                 # Plotar bolhas por região
                 regioes_presentes = []
-                for regiao_key in uf_stats['regiao'].unique():
-                    mask = uf_stats['regiao'] == regiao_key
-                    masked_data = uf_stats.loc[mask]
+                for regiao_key in geo_stats['regiao'].unique():
+                    mask = geo_stats['regiao'] == regiao_key
+                    masked_data = geo_stats.loc[mask]
                     
                     # Só plotar se houver dados
                     if len(masked_data) > 0 and regiao_key is not None:
@@ -2044,9 +2342,14 @@ with st.expander("Matriz de Maturidade Fundiária por UF", expanded=True):
                         )
                         regioes_presentes.append(regiao_key)
 
-                # Adicionar labels das UFs
-                for idx, row in uf_stats.iterrows():
-                    ax.annotate(row['estado'], (row['pct_espacial_bom'], row['pct_cpf_igual']),
+                # Adicionar labels (UF ou município completo)
+                for idx, row in geo_stats.iterrows():
+                    if tem_filtro_municipio_matriz:
+                        label = row[coluna_geo_matriz]  # Nome completo do município
+                    else:
+                        label = row['estado']
+                    
+                    ax.annotate(label, (row['pct_espacial_bom'], row['pct_cpf_igual']),
                                    xytext=(0, 0), textcoords='offset points',
                                fontsize=9, fontweight='bold', color='#333333', ha='center', va='center', zorder=4)
 
@@ -2078,7 +2381,7 @@ with st.expander("Matriz de Maturidade Fundiária por UF", expanded=True):
                               title_fontsize=11, framealpha=1, edgecolor='#CCCCCC')
 
                 # Legenda de tamanho (apenas se houver variação)
-                if len(uf_stats) > 1 and sizes.min() != sizes.max():
+                if len(geo_stats) > 1 and sizes.min() != sizes.max():
                     size_legend_values = [int(sizes.min()), int(sizes.quantile(0.5)), int(sizes.max())]
                     # Usar Line2D ao invés de scatter vazio
                     from matplotlib.lines import Line2D

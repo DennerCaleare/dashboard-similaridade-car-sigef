@@ -287,15 +287,18 @@ def load_filtered_data(
         # Construir condições de forma mais segura
         conditions = []
         
+        # Se município foi selecionado, ignora filtros de UF e região
+        tem_municipio = municipios and len(municipios) > 0
+        
         # Tratar filtros None, vazios ou com strings vazias
-        if regioes and len(regioes) > 0:
+        if not tem_municipio and regioes and len(regioes) > 0:
             # Filtrar valores None e strings vazias
             safe_regioes = [r.replace("'", "''").strip() for r in regioes if r and str(r).strip()]
             if safe_regioes:
                 regioes_str = "', '".join(safe_regioes)
                 conditions.append(f"regiao IN ('{regioes_str}')")
         
-        if ufs and len(ufs) > 0:
+        if not tem_municipio and ufs and len(ufs) > 0:
             safe_ufs = [u.replace("'", "''").strip() for u in ufs if u and str(u).strip()]
             if safe_ufs:
                 ufs_str = "', '".join(safe_ufs)
@@ -371,18 +374,18 @@ def get_total_cars_by_year(
     tamanhos: Optional[List[str]] = None,
     status: Optional[List[str]] = None
 ) -> pd.DataFrame:
-    """Retorna o total de CARs cadastrados por ano (dados reais do banco MGI).
+    """Retorna o total de CARs cadastrados por ano.
     
-    Os dados estão armazenados na coluna total_cars_cadastrados do CSV principal,
-    que contém o total real de CARs cadastrados por estado+ano do banco MGI.
+    Para filtros de município: usa coluna total_cars_municipio (dados do banco MGI por município).
+    Para filtros de estado/região: usa coluna total_cars_cadastrados (dados do banco MGI por estado).
     Aplica filtros geográficos.
     
     Args:
         regioes: Lista de regiões a filtrar
         ufs: Lista de UFs a filtrar
         municipios: Lista de municípios a filtrar
-        tamanhos: Lista de tamanhos (ignorado - dados agregados)
-        status: Lista de status (ignorado - dados agregados)
+        tamanhos: Lista de tamanhos (ignorado para agregações)
+        status: Lista de status (ignorado para agregações)
         
     Returns:
         DataFrame com colunas: ano_cadastro, total_cars
@@ -392,20 +395,22 @@ def get_total_cars_by_year(
         
         # Construir condições de filtro
         where_clauses = []
+        tem_municipio = municipios and len(municipios) > 0
         
-        if regioes and len(regioes) > 0:
+        # Se município foi selecionado, ignora filtros de UF e região
+        if not tem_municipio and regioes and len(regioes) > 0:
             safe_regioes = [r.replace("'", "''").strip() for r in regioes if r and str(r).strip()]
             if safe_regioes:
                 regioes_str = "', '".join(safe_regioes)
                 where_clauses.append(f"regiao IN ('{regioes_str}')")
         
-        if ufs and len(ufs) > 0:
+        if not tem_municipio and ufs and len(ufs) > 0:
             safe_ufs = [u.replace("'", "''").strip() for u in ufs if u and str(u).strip()]
             if safe_ufs:
                 ufs_str = "', '".join(safe_ufs)
                 where_clauses.append(f"estado IN ('{ufs_str}')")
         
-        if municipios and len(municipios) > 0:
+        if tem_municipio:
             mun_conditions = []
             for mun in municipios:
                 if mun and str(mun).strip():
@@ -422,24 +427,46 @@ def get_total_cars_by_year(
         
         where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
         
-        # Query para obter totais únicos por ano+estado e depois agregar por ano
-        query = f"""
-            SELECT 
-                ano_cadastro,
-                SUM(total_cars) as total_cars
-            FROM (
-                SELECT DISTINCT
+        # Se tem filtro de município, usa total_cars_municipio
+        # Senão, usa total_cars_cadastrados agregada por estado
+        if tem_municipio:
+            # Usar total_cars_municipio (dados do banco MGI por município)
+            query = f"""
+                SELECT 
                     ano_cadastro,
-                    estado,
-                    total_cars_cadastrados as total_cars
-                FROM similaridade
-                WHERE {where_clause}
-                    AND ano_cadastro IS NOT NULL
-                    AND total_cars_cadastrados IS NOT NULL
-            )
-            GROUP BY ano_cadastro
-            ORDER BY ano_cadastro
-        """
+                    SUM(total_cars) as total_cars
+                FROM (
+                    SELECT DISTINCT
+                        ano_cadastro,
+                        idt_municipio,
+                        total_cars_municipio as total_cars
+                    FROM similaridade
+                    WHERE {where_clause}
+                        AND ano_cadastro IS NOT NULL
+                        AND total_cars_municipio IS NOT NULL
+                )
+                GROUP BY ano_cadastro
+                ORDER BY ano_cadastro
+            """
+        else:
+            # Usar total_cars_cadastrados (dados do banco MGI por estado)
+            query = f"""
+                SELECT 
+                    ano_cadastro,
+                    SUM(total_cars) as total_cars
+                FROM (
+                    SELECT DISTINCT
+                        ano_cadastro,
+                        estado,
+                        total_cars_cadastrados as total_cars
+                    FROM similaridade
+                    WHERE {where_clause}
+                        AND ano_cadastro IS NOT NULL
+                        AND total_cars_cadastrados IS NOT NULL
+                )
+                GROUP BY ano_cadastro
+                ORDER BY ano_cadastro
+            """
         
         df = conn.execute(query).fetchdf()
         return df
@@ -474,13 +501,16 @@ def get_aggregated_stats(
         # Construir WHERE clause com sanitização
         where_clauses = []
         
-        if regioes and len(regioes) > 0:
+        # Se município foi selecionado, ignora filtros de UF e região
+        tem_municipio = municipios and len(municipios) > 0
+        
+        if not tem_municipio and regioes and len(regioes) > 0:
             safe_regioes = [r.replace("'", "''").strip() for r in regioes if r and str(r).strip()]
             if safe_regioes:
                 regioes_str = "', '".join(safe_regioes)
                 where_clauses.append(f"regiao IN ('{regioes_str}')")
         
-        if ufs and len(ufs) > 0:
+        if not tem_municipio and ufs and len(ufs) > 0:
             safe_ufs = [u.replace("'", "''").strip() for u in ufs if u and str(u).strip()]
             if safe_ufs:
                 ufs_str = "', '".join(safe_ufs)
@@ -688,9 +718,8 @@ def display_municipio_filter(municipios: List[str]) -> List[str]:
             options=municipios,
             default=None,
             placeholder="Escolha as opções",
-            help="Selecione um ou mais municípios (municípios com mesmo nome aparecem como 'Nome - UF')",
-            label_visibility="collapsed",
-            max_selections=None
+            help="Selecione um ou mais municípios (para muitos municípios, gráficos mostrarão top 20 + 'Outros')",
+            label_visibility="collapsed"
         )
         return selected
     except Exception as e:
