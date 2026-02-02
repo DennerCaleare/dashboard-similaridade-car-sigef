@@ -8,11 +8,12 @@ Fundiária (SIGEF).
 Características principais:
 - Análise de similaridade espacial usando Índice de Jaccard
 - Cruzamento de titularidade (CPF/CNPJ)
-- Visualizações interativas por região, UF, tamanho e status
+- Visualizações interativas por região, UF, município, tamanho e status
 - Performance otimizada com DuckDB
 - Cache inteligente para filtros
+- Suporte a filtro de município com identificação de duplicatas
 
-Versão: Final UF/Região
+Versão: Final UF/Região + Município
 Desenvolvido para: Ministério da Gestão e Inovação (MGI)
 Autor: Denner Caleare
 Data: Janeiro 2026
@@ -922,7 +923,7 @@ if 'regioes_auto_selecionadas' not in st.session_state:
 
 # Usar form para evitar reruns a cada mudança de filtro
 with st.form(key="filtros_form"):
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col2:
         ufs_originais = sorted([u for u in metadata['estados'] if u is not None]) if metadata['estados'] else []
@@ -935,10 +936,14 @@ with st.form(key="filtros_form"):
         regioes_selecionadas = display_region_filter(regioes_originais, default=regioes_detectadas)
 
     with col3:
+        municipios_disponiveis = sorted([m for m in metadata['municipios'] if m is not None]) if metadata.get('municipios') else []
+        municipios_selecionados = display_municipio_filter(municipios_disponiveis)
+
+    with col4:
         tamanhos_disponiveis = sorted([t for t in metadata['tamanhos'] if t is not None]) if metadata['tamanhos'] else []
         tamanhos_selecionados = display_size_filter(tamanhos_disponiveis)
 
-    with col4:
+    with col5:
         status_originais = sorted([s for s in metadata['status'] if s is not None]) if metadata['status'] else []
         status_selecionados = display_status_filter(status_originais)
     
@@ -949,6 +954,7 @@ with st.form(key="filtros_form"):
 current_filters = (
     tuple(sorted(regioes_selecionadas)) if regioes_selecionadas else (),
     tuple(sorted(ufs_selecionadas)) if ufs_selecionadas else (),
+    tuple(sorted(municipios_selecionados)) if municipios_selecionados else (),
     tuple(sorted(tamanhos_selecionados)) if tamanhos_selecionados else (),
     tuple(sorted(status_selecionados)) if status_selecionados else ()
 )
@@ -963,6 +969,7 @@ if (submit_button and filters_changed) or st.session_state.df_cached is None:
         # Validar que não há filtros vazios inválidos
         valid_regioes = [r for r in (regioes_selecionadas or []) if r]
         valid_ufs = [u for u in (ufs_selecionadas or []) if u]
+        valid_municipios = [m for m in (municipios_selecionados or []) if m]
         valid_tamanhos = [t for t in (tamanhos_selecionados or []) if t]
         valid_status = [s for s in (status_selecionados or []) if s]
         
@@ -979,6 +986,7 @@ if (submit_button and filters_changed) or st.session_state.df_cached is None:
         df_filtrado = load_filtered_data(
             regioes=regioes_para_filtro,
             ufs=valid_ufs if valid_ufs else None,
+            municipios=valid_municipios if valid_municipios else None,
             tamanhos=valid_tamanhos if valid_tamanhos else None,
             status=valid_status if valid_status else None
         )
@@ -1178,8 +1186,18 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
     if not validate_data(df_filtrado, "Panorama Regional", min_records=1):
         pass  # Mensagem já exibida pela função
     else:
-        # Título centralizado
-        st.markdown("<h3 style='text-align: center; margin-bottom: 1rem;'>Similaridade e Titularidade por UF</h3>", unsafe_allow_html=True)
+        # Determinar se estamos filtrando por município
+        tem_filtro_municipio = municipios_selecionados and len(municipios_selecionados) > 0
+        
+        # Título dinâmico baseado no filtro
+        if tem_filtro_municipio:
+            titulo = "Similaridade e Titularidade por Município"
+            coluna_geo = 'municipio_nome'
+        else:
+            titulo = "Similaridade e Titularidade por UF"
+            coluna_geo = 'estado'
+        
+        st.markdown(f"<h3 style='text-align: center; margin-bottom: 1rem;'>{titulo}</h3>", unsafe_allow_html=True)
         
         # Opção de visualização temporariamente desabilitada
         # tipo_visualizacao = st.radio(
@@ -1194,54 +1212,54 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
         # Fixado em porcentagem por enquanto
         mostrar_porcentagem = True
 
-        # Verificar se há mais de 1 UF selecionada e se a coluna existe
-        if 'estado' not in df_filtrado.columns:
-            st.error("❌ Erro: Coluna 'estado' não encontrada nos dados.")
+        # Verificar se a coluna geográfica existe
+        if coluna_geo not in df_filtrado.columns:
+            st.error(f"❌ Erro: Coluna '{coluna_geo}' não encontrada nos dados.")
         else:
-            num_ufs = df_filtrado['estado'].nunique()
+            num_areas = df_filtrado[coluna_geo].nunique()
 
-            # Só mostrar gráficos de UF se houver mais de 1 UF
-            if num_ufs > 1:
-                # Verificar se deve mostrar gráfico regional
-                # Mostra se: (1) não há filtro de UF OU (2) todas UFs de uma região foram selecionadas
-                regioes_completas_detectadas = get_regioes_from_ufs(ufs_selecionadas) if ufs_selecionadas else []
-                mostrar_grafico_regional = len(ufs_selecionadas) == 0 or len(regioes_completas_detectadas) > 0
+            # Só mostrar gráficos se houver mais de 1 área geográfica
+            if num_areas > 1:
+                # Verificar se deve mostrar gráfico regional (só para UF)
+                mostrar_grafico_regional = False
+                if not tem_filtro_municipio:
+                    regioes_completas_detectadas = get_regioes_from_ufs(ufs_selecionadas) if ufs_selecionadas else []
+                    mostrar_grafico_regional = len(ufs_selecionadas) == 0 or len(regioes_completas_detectadas) > 0
                 
-                # Calcular altura dinamicamente baseado no número de UFs
-                num_ufs_grafico = df_filtrado['estado'].nunique()
-                height_bar = max(1.5, min(6, num_ufs_grafico * 0.3))
+                # Calcular altura dinamicamente baseado no número de áreas
+                num_areas_grafico = df_filtrado[coluna_geo].nunique()
+                height_bar = max(1.5, min(6, num_areas_grafico * 0.3))
                 
-                # Ajustar largura baseado no número de UFs (menos UFs = gráfico mais estreito)
-                if num_ufs_grafico <= 3:
+                # Ajustar largura baseado no número de áreas (menos áreas = gráfico mais estreito)
+                if num_areas_grafico <= 3:
                     width_bar = 8
-                elif num_ufs_grafico <= 5:
+                elif num_areas_grafico <= 5:
                     width_bar = 10
                 else:
                     width_bar = 12
                 
                 if mostrar_grafico_regional:
-                    # Com gráfico regional: usar 2 colunas
+                    # Com gráfico regional: usar 2 colunas (só para UF)
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        # Altura dinâmica para evitar barras muito grandes com poucas UFs
-                        zt.bar_plot(df_filtrado, 'estado', percentage=mostrar_porcentagem, figsize=(width_bar, height_bar))
-                        # Tamanho da fonte responsivo baseado no número de UFs
+                        # Altura dinâmica para evitar barras muito grandes
+                        zt.bar_plot(df_filtrado, coluna_geo, percentage=mostrar_porcentagem, figsize=(width_bar, height_bar))
+                        # Tamanho da fonte responsivo baseado no número de áreas
                         ax = plt.gca()
-                        # Quando poucas UFs: fonte maior (10-12), quando muitas: fonte menor (6-7)
-                        if num_ufs_grafico <= 5:
+                        if num_areas_grafico <= 5:
                             fontsize = 16
-                        elif num_ufs_grafico <= 10:
+                        elif num_areas_grafico <= 10:
                             fontsize = 14
-                        elif num_ufs_grafico <= 20:
+                        elif num_areas_grafico <= 20:
                             fontsize = 12
                         else:
                             fontsize = 10
                         for text in ax.texts:
                             text.set_fontsize(fontsize)
                             text.set_weight('bold')
-                        # Centralizar gráfico quando houver poucas UFs
-                        if num_ufs_grafico <= 5:
+                        # Centralizar gráfico quando houver poucas áreas
+                        if num_areas_grafico <= 5:
                             plt.tight_layout()
                         render_matplotlib(use_container_width=True)
                 
@@ -1256,11 +1274,11 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                             )
                             # Ajustar tamanho da fonte para melhor legibilidade
                             ax = plt.gca()
-                            if num_ufs_grafico <= 5:
+                            if num_areas_grafico <= 5:
                                 fontsize = 20
-                            elif num_ufs_grafico <= 10:
+                            elif num_areas_grafico <= 10:
                                 fontsize = 18
-                            elif num_ufs_grafico <= 20:
+                            elif num_areas_grafico <= 20:
                                 fontsize = 16
                             else:
                                 fontsize = 14
@@ -1273,46 +1291,47 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                             st.info("⚠️ Dados insuficientes para o gráfico regional.")
                 else:
                     # Sem gráfico regional: gráfico de barras ocupa largura total
-                    zt.bar_plot(df_filtrado, 'estado', percentage=mostrar_porcentagem, figsize=(width_bar, height_bar))
-                    # Tamanho da fonte responsivo baseado no número de UFs
+                    zt.bar_plot(df_filtrado, coluna_geo, percentage=mostrar_porcentagem, figsize=(width_bar, height_bar))
+                    # Tamanho da fonte responsivo baseado no número de áreas
                     ax = plt.gca()
-                    if num_ufs_grafico <= 5:
+                    if num_areas_grafico <= 5:
                         fontsize = 16
-                    elif num_ufs_grafico <= 10:
+                    elif num_areas_grafico <= 10:
                         fontsize = 14
-                    elif num_ufs_grafico <= 20:
+                    elif num_areas_grafico <= 20:
                         fontsize = 12
                     else:
                         fontsize = 10
                     for text in ax.texts:
                         text.set_fontsize(fontsize)
                         text.set_weight('bold')
-                    # Centralizar gráfico quando houver poucas UFs
-                    if num_ufs_grafico <= 5:
+                    # Centralizar gráfico quando houver poucas áreas
+                    if num_areas_grafico <= 5:
                         plt.tight_layout()
                     render_matplotlib(use_container_width=True)
-            # Se apenas 1 UF: não mostrar gráfico de barras por UF
+            # Se apenas 1 área: não mostrar gráfico de barras
 
         st.markdown("---")
 
-        # Ajustar altura dinamicamente baseado no número de UFs
-        num_ufs_total = df_filtrado['estado'].nunique()
-        height_estado = max(1.5, min(5.5, num_ufs_total * 0.35))
+        # Ajustar altura dinamicamente baseado no número de áreas
+        num_total = df_filtrado[coluna_geo].nunique()
+        height_geo = max(1.5, min(5.5, num_total * 0.35))
         zt.stacked_bar_plot(
-            df_filtrado, y="estado", hue="faixa_jaccard",
+            df_filtrado, y=coluna_geo, hue="faixa_jaccard",
             order_hue=JACCARD_LABELS, palette=CORES_FAIXA_JACCARD,
             legend_title="Percentual de Similaridade CAR-SIGEF",
-            show_pct_symbol=True, figsize=(12, height_estado), legend_cols=5
+            show_pct_symbol=True, figsize=(12, height_geo), legend_cols=5
         )
         render_matplotlib(use_container_width=True)
 
         st.markdown("---")
 
-        st.markdown("<h3 style='text-align: center;'>Titularidade por UF</h3>", unsafe_allow_html=True)
-        # Ajustar altura baseado no número de UFs
-        height_titularidade = max(1.5, min(5.5, num_ufs_total * 0.35))
+        titulo_titularidade = f"Titularidade por {('Município' if tem_filtro_municipio else 'UF')}"
+        st.markdown(f"<h3 style='text-align: center;'>{titulo_titularidade}</h3>", unsafe_allow_html=True)
+        # Ajustar altura baseado no número de áreas
+        height_titularidade = max(1.5, min(5.5, num_total * 0.35))
         zt.stacked_bar_plot(
-            df_filtrado, y="estado", hue="label_cpf",
+            df_filtrado, y=coluna_geo, hue="label_cpf",
             order_hue=["Diferente", "Igual"], palette=CORES_TITULARIDADE,
             legend_title="Titularidade (CPF/CNPJ)",
             show_pct_symbol=True, figsize=(12, height_titularidade)

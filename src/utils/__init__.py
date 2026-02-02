@@ -229,20 +229,43 @@ def load_metadata() -> Dict[str, List]:
         tamanhos = conn.execute("SELECT DISTINCT class_tam_imovel FROM similaridade WHERE class_tam_imovel IS NOT NULL ORDER BY class_tam_imovel").fetchdf()['class_tam_imovel'].tolist()
         status = conn.execute("SELECT DISTINCT status_imovel FROM similaridade WHERE status_imovel IS NOT NULL ORDER BY status_imovel").fetchdf()['status_imovel'].tolist()
         
+        # Extrair municípios com formato "Município - UF" para municípios duplicados
+        municipios_df = conn.execute("""
+            SELECT DISTINCT 
+                municipio_nome,
+                estado,
+                COUNT(*) OVER (PARTITION BY municipio_nome) as count_duplicates
+            FROM similaridade 
+            WHERE municipio_nome IS NOT NULL 
+            ORDER BY municipio_nome, estado
+        """).fetchdf()
+        
+        # Formatar municípios: adicionar UF se houver duplicatas
+        municipios_formatados = []
+        for _, row in municipios_df.iterrows():
+            if row['count_duplicates'] > 1:
+                municipios_formatados.append(f"{row['municipio_nome']} - {row['estado']}")
+            else:
+                municipios_formatados.append(row['municipio_nome'])
+        
+        municipios = sorted(list(set(municipios_formatados)))
+        
         return {
             'regioes': regioes,
             'estados': estados,
+            'municipios': municipios,
             'tamanhos': tamanhos,
             'status': status
         }
     except Exception as e:
         st.error(f"Erro ao carregar metadados: {str(e)}")
-        return {'regioes': [], 'estados': [], 'tamanhos': [], 'status': []}
+        return {'regioes': [], 'estados': [], 'municipios': [], 'tamanhos': [], 'status': []}
 
 
 def load_filtered_data(
     regioes: Optional[List[str]] = None,
     ufs: Optional[List[str]] = None,
+    municipios: Optional[List[str]] = None,
     tamanhos: Optional[List[str]] = None,
     status: Optional[List[str]] = None
 ) -> pd.DataFrame:
@@ -251,6 +274,7 @@ def load_filtered_data(
     Args:
         regioes: Lista de regiões a filtrar
         ufs: Lista de UFs a filtrar
+        municipios: Lista de municípios a filtrar (formato: "Nome" ou "Nome - UF")
         tamanhos: Lista de tamanhos a filtrar
         status: Lista de status a filtrar
         
@@ -276,6 +300,25 @@ def load_filtered_data(
             if safe_ufs:
                 ufs_str = "', '".join(safe_ufs)
                 conditions.append(f"estado IN ('{ufs_str}')")
+        
+        if municipios and len(municipios) > 0:
+            # Processar municípios no formato "Nome" ou "Nome - UF"
+            mun_conditions = []
+            for mun in municipios:
+                if mun and str(mun).strip():
+                    if ' - ' in mun:
+                        # Formato "Nome - UF"
+                        nome, uf = mun.rsplit(' - ', 1)
+                        nome_safe = nome.strip().replace("'", "''")
+                        uf_safe = uf.strip().replace("'", "''")
+                        mun_conditions.append(f"(municipio_nome = '{nome_safe}' AND estado = '{uf_safe}')")
+                    else:
+                        # Formato "Nome"
+                        nome_safe = mun.strip().replace("'", "''")
+                        mun_conditions.append(f"municipio_nome = '{nome_safe}'")
+            
+            if mun_conditions:
+                conditions.append(f"({' OR '.join(mun_conditions)})")
         
         if tamanhos and len(tamanhos) > 0:
             safe_tamanhos = [t.replace("'", "''").strip() for t in tamanhos if t and str(t).strip()]
@@ -621,6 +664,32 @@ def display_uf_filter(ufs: List[str]) -> List[str]:
         return result
     except Exception as e:
         st.error(f"Erro no filtro de UF: {str(e)}")
+        return []
+
+
+def display_municipio_filter(municipios: List[str]) -> List[str]:
+    """Exibe filtro de Municípios.
+    
+    Args:
+        municipios: Lista de municípios disponíveis (formato: "Nome" ou "Nome - UF")
+        
+    Returns:
+        Lista de municípios selecionados (mesmo formato)
+    """
+    try:
+        st.markdown("<p style='text-align: center;'>Município</p>", unsafe_allow_html=True)
+        selected = st.multiselect(
+            "Município",
+            options=municipios,
+            default=None,
+            placeholder="Escolha as opções",
+            help="Selecione um ou mais municípios (municípios com mesmo nome aparecem como 'Nome - UF')",
+            label_visibility="collapsed",
+            max_selections=None
+        )
+        return selected
+    except Exception as e:
+        st.error(f"Erro no filtro de município: {str(e)}")
         return []
 
 
