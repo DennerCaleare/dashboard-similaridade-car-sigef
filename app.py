@@ -54,7 +54,7 @@ from src.config import (
 from src.utils import (
     load_metadata, load_filtered_data, get_total_records, get_total_cars_by_year,
     reset_connection, format_number, create_quadrant_background, add_quadrant_labels,
-    display_region_filter, display_uf_filter, display_size_filter,
+    display_region_filter, display_uf_filter, display_municipio_filter, display_size_filter,
     display_status_filter, display_filter_summary, get_aggregated_stats,
     get_regioes_from_ufs
 )
