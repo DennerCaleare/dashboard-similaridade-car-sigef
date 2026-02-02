@@ -12,10 +12,11 @@ Características principais:
 - Performance otimizada com DuckDB
 - Cache inteligente para filtros
 
+Versão: Final UF/Região
 Desenvolvido para: Ministério da Gestão e Inovação (MGI)
 Autor: Denner Caleare
 Data: Janeiro 2026
-Última atualização: 26/01/2026
+Última atualização: 02/02/2026
 """
 
 # ═══════════════════════════════════════════════════════════
@@ -657,7 +658,7 @@ def create_brazil_choropleth_map(df, metric='jaccard_medio'):
     fig.update_layout(
         title={'text': 'Similaridade por Estado', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 10}},
         margin=dict(l=0, r=0, t=30, b=50),
-        height=300,
+        height=450,
         coloraxis_colorbar=dict(
             title=dict(text="Similaridade (%)", font=dict(size=10, color='#1D1D1D')),
             tickfont=dict(size=9, color='#1D1D1D'),
@@ -771,7 +772,7 @@ def create_brazil_titularidade_map(df):
     fig.update_layout(
         title={'text': 'Titularidade por Estado', 'x': 0.5, 'xanchor': 'center', 'font': {'size': 10}},
         margin=dict(l=0, r=0, t=30, b=50),
-        height=300,
+        height=450,
         coloraxis_colorbar=dict(
             title=dict(text="CPF Igual (%)", font=dict(size=10, color='#1D1D1D')),
             tickfont=dict(size=9, color='#1D1D1D'),
@@ -887,11 +888,23 @@ if not st.session_state.db_initialized:
 # HEADER
 # ═══════════════════════════════════════════════════════════
 
-st.markdown("<h1>Análise de Similaridade CAR-SIGEF</h1>", unsafe_allow_html=True)
-st.markdown(
-    "<h3 style='text-align: center;'>Análise Exploratória dos Dados de Similaridade Espacial</h3>",
-    unsafe_allow_html=True
-)
+st.markdown("""
+    <h1 style='background: linear-gradient(90deg, #0d0d0d 0%, #1f5bb8 100%); 
+               -webkit-background-clip: text; 
+               -webkit-text-fill-color: transparent; 
+               background-clip: text;'>
+        Análise de Similaridade CAR-SIGEF
+    </h1>
+""", unsafe_allow_html=True)
+st.markdown("""
+    <h3 style='text-align: center;
+               background: linear-gradient(90deg, #0d0d0d 0%, #1f5bb8 100%); 
+               -webkit-background-clip: text; 
+               -webkit-text-fill-color: transparent; 
+               background-clip: text;'>
+        Análise Exploratória dos Dados de Similaridade Espacial
+    </h3>
+""", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════
 # FILTROS
@@ -1166,7 +1179,21 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
     if not validate_data(df_filtrado, "Panorama Regional", min_records=1):
         pass  # Mensagem já exibida pela função
     else:
-        st.markdown("<h3 style='text-align: center;'>Similaridade e Titularidade por UF</h3>", unsafe_allow_html=True)
+        # Título centralizado
+        st.markdown("<h3 style='text-align: center; margin-bottom: 1rem;'>Similaridade e Titularidade por UF</h3>", unsafe_allow_html=True)
+        
+        # Opção de visualização temporariamente desabilitada
+        # tipo_visualizacao = st.radio(
+        #     "Visualização",
+        #     options=["Porcentagem", "Valores Absolutos"],
+        #     horizontal=True,
+        #     label_visibility="collapsed",
+        #     key="tipo_viz_uf"
+        # )
+        # mostrar_porcentagem = tipo_visualizacao == "Porcentagem"
+        
+        # Fixado em porcentagem por enquanto
+        mostrar_porcentagem = True
 
         # Verificar se há mais de 1 UF selecionada e se a coluna existe
         if 'estado' not in df_filtrado.columns:
@@ -1199,7 +1226,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                     
                     with col1:
                         # Altura dinâmica para evitar barras muito grandes com poucas UFs
-                        zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=(width_bar, height_bar))
+                        zt.bar_plot(df_filtrado, 'estado', percentage=mostrar_porcentagem, figsize=(width_bar, height_bar))
                         # Tamanho da fonte responsivo baseado no número de UFs
                         ax = plt.gca()
                         # Quando poucas UFs: fonte maior (10-12), quando muitas: fonte menor (6-7)
@@ -1247,7 +1274,7 @@ with st.expander("Panorama Regional e Operacional", expanded=True):
                             st.info("⚠️ Dados insuficientes para o gráfico regional.")
                 else:
                     # Sem gráfico regional: gráfico de barras ocupa largura total
-                    zt.bar_plot(df_filtrado, 'estado', percentage=True, figsize=(width_bar, height_bar))
+                    zt.bar_plot(df_filtrado, 'estado', percentage=mostrar_porcentagem, figsize=(width_bar, height_bar))
                     # Tamanho da fonte responsivo baseado no número de UFs
                     ax = plt.gca()
                     if num_ufs_grafico <= 5:
@@ -1460,6 +1487,18 @@ with st.expander("Evolução Temporal", expanded=True):
     if not validate_data(df_filtrado, "Evolução Temporal", min_records=CONFIG['MIN_RECORDS_FOR_ANALYSIS']):
         pass  # Mensagem já exibida pela função
     else:
+        # Definir variáveis de filtro usadas nesta seção
+        valid_regioes = [r for r in (regioes_selecionadas or []) if r]
+        valid_ufs = [u for u in (ufs_selecionadas or []) if u]
+        valid_tamanhos = [t for t in (tamanhos_selecionados or []) if t]
+        valid_status = [s for s in (status_selecionados or []) if s]
+        
+        # Determinar filtro de região baseado em UFs
+        if valid_ufs:
+            regioes_para_filtro = None
+        else:
+            regioes_para_filtro = valid_regioes if valid_regioes else None
+        
         if 'ano_cadastro' in df_filtrado.columns:
             # 1. Preparar dados para gráfico combo (linha + barras)
             df_ano_sim = df_filtrado.groupby('ano_cadastro')['indice_jaccard'].median().reset_index()
