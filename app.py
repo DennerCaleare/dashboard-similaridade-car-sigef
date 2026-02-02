@@ -39,7 +39,6 @@ import matplotlib.patheffects as path_effects
 import seaborn as sns
 import zetta_utils as zt
 import plotly.express as px
-import plotly.graph_objects as go
 import json
 
 # Imports locais - Configurações

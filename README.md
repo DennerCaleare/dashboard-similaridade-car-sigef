@@ -8,6 +8,8 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![MGI - Gov](https://img.shields.io/badge/Desenvolvido%20para-MGI%20Federal-green.svg)](#)
 
+**Versão: Final UF/Região | Última atualização: 02/02/2026**
+
 ---
 
 ## 📚 O Desafio
