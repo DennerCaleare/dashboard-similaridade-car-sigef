@@ -372,8 +372,9 @@ def get_total_cars_by_year(
 ) -> pd.DataFrame:
     """Retorna o total de CARs cadastrados por ano (dados reais do banco MGI).
     
-    Usa arquivo CSV pré-gerado com dados do banco MGI que contém o total real
-    de CARs cadastrados por estado+ano. Aplica filtros geográficos.
+    Os dados estão armazenados na coluna total_cars_cadastrados do CSV principal,
+    que contém o total real de CARs cadastrados por estado+ano do banco MGI.
+    Aplica filtros geográficos.
     
     Args:
         regioes: Lista de regiões a filtrar
@@ -385,76 +386,46 @@ def get_total_cars_by_year(
         DataFrame com colunas: ano_cadastro, total_cars
     """
     try:
-        # Tentar carregar dados pré-gerados do banco
-        import os
-        csv_path = Path(__file__).parent.parent.parent / "total_cars_por_ano_estado_banco.csv"
+        conn = _get_connection()
         
-        if csv_path.exists():
-            # Carregar dados do arquivo CSV com dados do banco
-            df_banco = pd.read_csv(csv_path)
-            
-            # Aplicar filtros geográficos
-            df_filtrado = df_banco.copy()
-            
-            # Filtro por UF
-            if ufs and len(ufs) > 0:
-                df_filtrado = df_filtrado[df_filtrado['estado'].isin(ufs)]
-            
-            # Filtro por região (mapear estados para regiões)
-            if regioes and len(regioes) > 0:
-                REGIAO_MAP = {
-                    'norte': ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
-                    'nordeste': ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
-                    'centro_oeste': ['DF', 'GO', 'MT', 'MS'],
-                    'sudeste': ['ES', 'MG', 'RJ', 'SP'],
-                    'sul': ['PR', 'RS', 'SC']
-                }
-                estados_da_regiao = []
-                for regiao in regioes:
-                    regiao_key = regiao.lower().replace('-', '_').replace(' ', '_')
-                    if regiao_key in REGIAO_MAP:
-                        estados_da_regiao.extend(REGIAO_MAP[regiao_key])
-                
-                if estados_da_regiao:
-                    df_filtrado = df_filtrado[df_filtrado['estado'].isin(estados_da_regiao)]
-            
-            # Agregar por ano
-            df_resultado = df_filtrado.groupby('ano_cadastro', as_index=False)['total_cars'].sum()
-            return df_resultado
+        # Construir condições de filtro
+        where_clauses = []
         
-        else:
-            # Fallback: contar do dataset atual (menos preciso)
-            st.warning("⚠️ Arquivo de dados do banco não encontrado. Usando contagem do dataset.")
-            conn = _get_connection()
-            
-            where_clauses = []
-            
-            if regioes and len(regioes) > 0:
-                safe_regioes = [r.replace("'", "''").strip() for r in regioes if r and str(r).strip()]
-                if safe_regioes:
-                    regioes_str = "', '".join(safe_regioes)
-                    where_clauses.append(f"regiao IN ('{regioes_str}')")
-            
-            if ufs and len(ufs) > 0:
-                safe_ufs = [u.replace("'", "''").strip() for u in ufs if u and str(u).strip()]
-                if safe_ufs:
-                    ufs_str = "', '".join(safe_ufs)
-                    where_clauses.append(f"estado IN ('{ufs_str}')")
-            
-            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            
-            query = f"""
-                SELECT 
+        if regioes and len(regioes) > 0:
+            safe_regioes = [r.replace("'", "''").strip() for r in regioes if r and str(r).strip()]
+            if safe_regioes:
+                regioes_str = "', '".join(safe_regioes)
+                where_clauses.append(f"regiao IN ('{regioes_str}')")
+        
+        if ufs and len(ufs) > 0:
+            safe_ufs = [u.replace("'", "''").strip() for u in ufs if u and str(u).strip()]
+            if safe_ufs:
+                ufs_str = "', '".join(safe_ufs)
+                where_clauses.append(f"estado IN ('{ufs_str}')")
+        
+        where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+        
+        # Query para obter totais únicos por ano+estado e depois agregar por ano
+        query = f"""
+            SELECT 
+                ano_cadastro,
+                SUM(total_cars) as total_cars
+            FROM (
+                SELECT DISTINCT
                     ano_cadastro,
-                    COUNT(*) as total_cars
+                    estado,
+                    total_cars_cadastrados as total_cars
                 FROM similaridade
-                WHERE {where_clause} AND ano_cadastro IS NOT NULL
-                GROUP BY ano_cadastro
-                ORDER BY ano_cadastro
-            """
-            
-            df = conn.execute(query).fetchdf()
-            return df
+                WHERE {where_clause}
+                    AND ano_cadastro IS NOT NULL
+                    AND total_cars_cadastrados IS NOT NULL
+            )
+            GROUP BY ano_cadastro
+            ORDER BY ano_cadastro
+        """
+        
+        df = conn.execute(query).fetchdf()
+        return df
         
     except Exception as e:
         st.error(f"Erro ao calcular total de CARs por ano: {str(e)}")
