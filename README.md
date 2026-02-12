@@ -118,6 +118,10 @@ cd dashboard-similaridade-car-sigef
 # Instalar dependências
 pip install -r requirements.txt
 
+# Configurar variáveis de ambiente (IMPORTANTE)
+cp .env.example .env
+# Edite o .env com suas credenciais (se necessário)
+
 # Executar aplicação
 streamlit run app.py
 ```
@@ -127,6 +131,24 @@ streamlit run app.py
 - Python 3.9 ou superior
 - 8GB RAM (recomendado para dataset completo)
 - Navegador moderno (Chrome, Firefox, Edge)
+
+### 🔒 Configuração Segura
+
+> [!WARNING]
+> **NUNCA commite o arquivo `.env` com credenciais reais!**
+
+O arquivo `.env` contém variáveis de ambiente sensíveis. Para configurar:
+
+1. Copie o arquivo de exemplo:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edite o `.env` com suas credenciais (se necessário para scripts auxiliares)
+
+3. **Certifique-se** de que `.env` está no `.gitignore` (já está ✅)
+
+Para deploy no Streamlit Cloud, use a seção "Secrets" no painel de configuração ao invés do arquivo `.env`.
 
 ## 📊 Faixas de Similaridade (Índice de Jaccard)
 

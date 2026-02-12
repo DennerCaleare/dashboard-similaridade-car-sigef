@@ -253,8 +253,13 @@ ANO_MAX = 2030
 # CAMINHOS DE ARQUIVOS
 # ═══════════════════════════════════════════════════════════
 
+from pathlib import Path
+
+# Diretório base do projeto
+_BASE_DIR = Path(__file__).parent.parent.parent
+
 # Caminho para logo do footer
-LOGO_FOOTER_PATH = "assets/LogoZetta.png"
+LOGO_FOOTER_PATH = _BASE_DIR / "assets" / "LogoZetta.png"
 
 # Caminho para dados
-DATA_PATH = "data/similaridade_sicar_sigef_brasil.csv"
+DATA_PATH = _BASE_DIR / "data" / "similaridade_sicar_sigef_brasil.csv"

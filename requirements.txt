@@ -7,18 +7,18 @@
 # ═══════════════════════════════════════════════════════════
 
 # Framework Web
-streamlit==1.49.1
+streamlit>=1.49.0,<2.0.0
 
 # Database & Data Processing
-duckdb==1.4.3
-pandas==2.3.3
-numpy==2.3.4
+duckdb>=1.4.0,<2.0.0
+pandas>=2.3.0,<3.0.0
+numpy>=2.3.0,<3.0.0
 
 # Visualização
-matplotlib==3.10.0
-seaborn==0.13.2
-statsmodels==0.14.5
-plotly==5.24.1
+matplotlib>=3.10.0,<4.0.0
+seaborn>=0.13.0,<1.0.0
+statsmodels>=0.14.0,<1.0.0
+plotly>=5.24.0,<6.0.0
 
 # Biblioteca customizada Zetta (funções de visualização otimizadas)
 git+https://github.com/datasciencezetta/dc_zetta_utils.git@457987277013b9501f76f752220ed3fce18944b7
